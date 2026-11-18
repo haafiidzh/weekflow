@@ -1,4 +1,10 @@
-export type LocalSession = { email: string };
+export type LocalSession = {
+  id: string;
+  email: string;
+  name: string;
+  /** Whether Appwrite has confirmed that the account owns this email address. */
+  emailVerification: boolean;
+};
 import { seedPreviewTasks } from "@/lib/data";
 
 const SESSION_KEY = "weekflow-preview-session";
@@ -18,9 +24,15 @@ function readAccounts(): string[] {
 
 export function getSession(): LocalSession | null {
   try {
-    return JSON.parse(
-      localStorage.getItem(SESSION_KEY) || "null",
-    ) as LocalSession | null;
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const parsed: { email: string; name?: string; emailVerification?: boolean } = JSON.parse(raw);
+    return {
+      id: crypto.randomUUID(),
+      email: parsed.email,
+      name: parsed.name || parsed.email.split("@")[0],
+      emailVerification: parsed.emailVerification ?? false,
+    };
   } catch {
     return null;
   }
@@ -40,8 +52,14 @@ export function signUp(email: string, password: string): LocalSession {
   accounts.push(cleanEmail);
   localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
   seedPreviewTasks(cleanEmail);
-  const session = { email: cleanEmail };
+  const session: LocalSession = {
+    id: crypto.randomUUID(),
+    email: cleanEmail,
+    name: cleanEmail.split("@")[0],
+    emailVerification: false,
+  };
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  seedPreviewTasks(cleanEmail);
   return session;
 }
 
@@ -55,7 +73,12 @@ export function signIn(email: string, password: string): LocalSession {
     throw new Error(
       "Akun pratinjau ini belum ditemukan. Buat akun terlebih dahulu di browser ini.",
     );
-  const session = { email: cleanEmail };
+  const session: LocalSession = {
+    id: crypto.randomUUID(),
+    email: cleanEmail,
+    name: cleanEmail.split("@")[0],
+    emailVerification: false,
+  };
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   return session;
 }
