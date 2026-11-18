@@ -64,55 +64,135 @@ const todayKey = dayKey(new Date());
 const translations: Record<string, string> = {
   "Halaman ini belum tersedia": "This page is not available yet",
   "Periksa alamatnya, atau kembali ke minggu Anda.": "Check the address or return to your week.",
-  "Kembali": "Go back", "Navigasi utama": "Main navigation", "Masuk": "Sign in",
-  "Mulai gratis": "Get started for free", "Buka planner": "Open planner",
+  "Kembali": "Go back",
+  "Navigasi utama": "Main navigation",
+  "Masuk": "Sign in",
+  "Mulai gratis": "Get started for free",
+  "Buka planner": "Open planner",
   "RAPIKAN MINGGU, SATU HAL SEKALI": "MAKE SPACE FOR ONE THING AT A TIME",
-  "Lebih banyak ruang untuk": "More room for", "yang penting.": "what matters.",
+  "Lebih banyak ruang untuk": "More room for",
+  "yang penting.": "what matters.",
   "Taruh tugas pada harinya, simpan yang belum pasti, lalu jalani minggu dengan kepala lebih ringan.": "Place tasks on the right day, save the uncertain ones for later, and move through your week with a clearer mind.",
-  "Susun minggu saya": "Plan my week", "Gratis digunakan · Dirancang untuk penggunaan personal": "Free to use · Made for personal planning",
-  "Satu minggu, satu langkah yang terasa mungkin.": "One week, one step at a time.", "Ilustrasi planner mingguan": "Weekly planner illustration",
-  "Rencana yang cukup": "A plan that feels right", "Waktu untuk jeda": "Time to pause", "MINGGU INI": "THIS WEEK",
-  "Pelan-pelan, tetap bergerak": "Take it slow, keep moving", "SENIN SAMPAI MINGGU": "MONDAY THROUGH SUNDAY",
-  "Semua hari punya tempatnya.": "Every day has its place.", "TANPA TANGGAL": "UNSCHEDULED",
-  "Simpan ide untuk nanti.": "Save ideas for later.", "BUAT JALANMU SENDIRI": "MAKE YOUR OWN WAY",
-  "Rencana boleh berubah.": "Plans can change.", "MULAI DARI YANG TERDEKAT": "START WITH WHAT'S CLOSE",
-  "terasa milikmu.": "feel like yours.", "Temukan ritmemu sendiri": "Find your own rhythm",
-  "Kembali ke beranda": "Back to home", "Alamat email": "Email address", "Kata sandi": "Password",
-  "Minimal 8 karakter": "At least 8 characters", "Weekflow · Planner yang memberi ruang": "Weekflow · A planner with room to breathe",
-  "Preferensi": "Settings", "Keluar": "Sign out", "Rencanakan dengan": "Plan with", "tenang.": "ease.",
-  "Tambah tugas": "Add a task", "MINGGU TERPILIH": "SELECTED WEEK", "Minggu sebelumnya": "Previous week",
-  "Minggu berikutnya": "Next week", "Pilih hari": "Choose a day", "Hari ini": "Today",
-  "Planner belum bisa dimuat.": "The planner could not load.", "Periksa lagi sebentar lagi. Data lokalmu tetap ada.": "Please try again shortly. Your local data is still here.",
-  "Memuat planner": "Loading planner", "Ruang untuk hal baru.": "Room for something new.", "Tambah hal": "Add an item",
-  "Belum dijadwalkan": "Unscheduled", "Catat dulu. Cari harinya nanti.": "Write it down now. Find a day for it later.",
-  "Hal yang belum punya hari juga tetap punya tempat.": "Things without a day still have a place.", "Tulis satu hal": "Add an item",
-  "Rencana yang baik memberi ruang untuk berubah.": "A good plan leaves room to change.", "Tutup pemberitahuan": "Close notice",
-  "Aksi untuk": "Actions for", "Pindahkan": "Move", "ke tanggal": "to date", "Judul tugas": "Task title",
-  "Misalnya: kirim draf ke tim": "For example: send the team a draft", "Tanggal (opsional)": "Date (optional)",
-  "Tutup": "Close", "Kembali ke planner": "Back to planner", "ritme milikmu.": "your rhythm.",
-  "Pilih cara Weekflow menemani harimu.": "Choose how Weekflow fits into your day.", "Tampilan": "Appearance",
-  "Pilih suasana layar yang terasa nyaman.": "Choose a screen style that feels comfortable.", "Terang": "Light", "Gelap": "Dark",
-  "Ikuti perangkat": "Use device setting", "Awal minggu": "Week starts on", "Tentukan hari pertama dalam planner.": "Choose the first day of your planner week.",
-  "Senin": "Monday", "Minggu": "Sunday", "Akun saat ini": "Current account", "Browser ini": "This browser",
-  "Rencanakan dengan tenang.": "Plan with ease.", "nanti": "later",
+  "Susun minggu saya": "Plan my week",
+  "Gratis digunakan · Dirancang untuk penggunaan personal": "Free to use · Made for personal planning",
+  "Satu minggu, satu langkah yang terasa mungkin.": "One week, one step at a time.",
+  "Ilustrasi planner mingguan": "Weekly planner illustration",
+  "Rencana yang cukup": "A plan that feels right",
+  "Waktu untuk jeda": "Time to pause",
+  "MINGGU INI": "THIS WEEK",
+  "Pelan-pelan, tetap bergerak": "Take it slow, keep moving",
+  "SENIN SAMPAI MINGGU": "MONDAY THROUGH SUNDAY",
+  "Semua hari punya tempatnya.": "Every day has its place.",
+  "TANPA TANGGAL": "UNSCHEDULED",
+  "Simpan ide untuk nanti.": "Save ideas for later.",
+  "BUAT JALANMU SENDIRI": "MAKE YOUR OWN WAY",
+  "Rencana boleh berubah.": "Plans can change.",
+  "MULAI DARI YANG TERDEKAT": "START WITH WHAT'S CLOSE",
+  "terasa milikmu.": "feel like yours.",
+  "Temukan ritmemu sendiri": "Find your own rhythm",
+  "Kembali ke beranda": "Back to home",
+  "Alamat email": "Email address",
+  "Kata sandi": "Password",
+  "Minimal 8 karakter": "At least 8 characters",
+  "Weekflow · Planner yang memberi ruang": "Weekflow · A planner with room to breathe",
+  "Preferensi": "Settings",
+  "Keluar": "Sign out",
+  "Rencanakan dengan": "Plan with",
+  "tenang.": "ease.",
+  "Tambah tugas": "Add a task",
+  "MINGGU TERPILIH": "SELECTED WEEK",
+  "Minggu sebelumnya": "Previous week",
+  "Minggu berikutnya": "Next week",
+  "Pilih hari": "Choose a day",
+  "Hari ini": "Today",
+  "Planner belum bisa dimuat.": "The planner could not load.",
+  "Periksa lagi sebentar lagi. Data lokalmu tetap ada.": "Please try again shortly. Your local data is still here.",
+  "Memuat planner": "Loading planner",
+  "Ruang untuk hal baru.": "Room for something new.",
+  "Tambah hal": "Add an item",
+  "Belum dijadwalkan": "Unscheduled",
+  "Catat dulu. Cari harinya nanti.": "Write it down now. Find a day for it later.",
+  "Hal yang belum punya hari juga tetap punya tempat.": "Things without a day still have a place.",
+  "Tulis satu hal": "Add an item",
+  "Rencana yang baik memberi ruang untuk berubah.": "A good plan leaves room to change.",
+  "Tutup pemberitahuan": "Close notice",
+  "Aksi untuk": "Actions for",
+  "Pindahkan": "Move",
+  "ke tanggal": "to date",
+  "Judul tugas": "Task title",
+  "Misalnya: kirim draf ke tim": "For example: send the team a draft",
+  "Tanggal (opsional)": "Date (optional)",
+  "Tutup": "Close",
+  "Kembali ke planner": "Back to planner",
+  "ritme milikmu.": "your rhythm.",
+  "Pilih cara Weekflow menemani harimu.": "Choose how Weekflow fits into your day.",
+  "Tampilan": "Appearance",
+  "Pilih suasana layar yang terasa nyaman.": "Choose a screen style that feels comfortable.",
+  "Terang": "Light",
+  "Gelap": "Dark",
+  "Ikuti perangkat": "Use device setting",
+  "Awal minggu": "Week starts on",
+  "Tentukan hari pertama dalam planner.": "Choose the first day of your planner week.",
+  "Senin": "Monday",
+  "Minggu": "Sunday",
+  "Akun saat ini": "Current account",
+  "Browser ini": "This browser",
+  "Rencanakan dengan tenang.": "Plan with ease.",
+  "nanti": "later",
   "Ruang sederhana untuk mengumpulkan hal-hal yang ingin kamu selesaikan, tanpa harus mengerjakan semuanya sekaligus.": "A simple space to gather what you want to get done, without needing to do it all at once.",
-  "AWAL YANG BAIK": "A GOOD BEGINNING", "SENANG MELIHATMU LAGI": "WELCOME BACK",
-  "Buat ruang untuk rencanamu.": "Make room for your plans.", "Lanjutkan dari tempatmu.": "Pick up where you left off.",
+  "AWAL YANG BAIK": "A GOOD BEGINNING",
+  "SENANG MELIHATMU LAGI": "WELCOME BACK",
+  "Buat ruang untuk rencanamu.": "Make room for your plans.",
+  "Lanjutkan dari tempatmu.": "Pick up where you left off.",
   "Masukkan email dan kata sandi untuk membuat akun.": "Enter your email and password to create an account.",
-  "Masuk untuk melanjutkan rencanamu.": "Sign in to continue planning.", "Buat akun": "Create account", "Masuk ke akun": "Sign in",
-  "Sudah punya akun?": "Already have an account?", "Belum punya akun?": "New to Weekflow?", "Daftar": "Sign up",
-  "Masuk sebagai": "Signed in as", "WAKTUNYA MENYUSUN ULANG": "TIME TO RESET",
-  "Minggu ini": "This week", "Tugas": "Tasks", "Perubahan belum tersimpan. Coba lagi.": "Changes were not saved. Please try again.",
-  "Tugas dipindahkan.": "Task moved.", "Tugas disimpan tanpa tanggal.": "Task saved without a date.", "Urutan tugas diperbarui.": "Task order updated.",
-  "Coba lagi": "Try again", "Satu hal selesai. Bagus.": "One thing done. Nice work.", "Tugas dibuka kembali.": "Task reopened.",
-  "Tugas dihapus.": "Task deleted.", "tugas": "tasks", "Tambah": "Add", "Satu minggu pada satu waktu.": "One week at a time.",
-  "Perubahan disimpan.": "Changes saved.", "Tugas ditambahkan.": "Task added.", "Buka kembali": "Reopen", "Tandai": "Mark",
-  "selesai": "complete", "Edit": "Edit", "Hapus": "Delete", "Pindah": "Move", "Pindahkan ke hari lain": "Move to another day",
-  "Naikkan urutan": "Move up", "Turunkan urutan": "Move down", "Batal": "Cancel", "Simpan perubahan": "Save changes",
-  "Simpan tugas": "Save task", "Menyimpan…": "Saving…", "Tulis judul agar tugas bisa disimpan.": "Add a title to save this task.",
-  "Judul maksimal 200 karakter.": "Titles can be up to 200 characters.", "Belum tersimpan. Draft tetap ada, silakan coba lagi.": "Not saved. Your draft is still here; please try again.",
-  "Preferensi disimpan di browser ini.": "Settings saved in this browser.", "Pratinjau lokal · data tersimpan di browser ini": "Local preview · data is saved in this browser",
-  "SEN": "MON", "SEL": "TUE", "RAB": "WED", "KAM": "THU", "JUM": "FRI", "SAB": "SAT", "MIN": "SUN",
+  "Masuk untuk melanjutkan rencanamu.": "Sign in to continue planning.",
+  "Buat akun": "Create account",
+  "Masuk ke akun": "Sign in",
+  "Sudah punya akun?": "Already have an account?",
+  "Belum punya akun?": "New to Weekflow?",
+  "Daftar": "Sign up",
+  "Masuk sebagai": "Signed in as",
+  "WAKTUNYA MENYUSUN ULANG": "TIME TO RESET",
+  "Minggu ini": "This week",
+  "Tugas": "Tasks",
+  "Perubahan belum tersimpan. Coba lagi.": "Changes were not saved. Please try again.",
+  "Tugas dipindahkan.": "Task moved.",
+  "Tugas disimpan tanpa tanggal.": "Task saved without a date.",
+  "Urutan tugas diperbarui.": "Task order updated.",
+  "Coba lagi": "Try again",
+  "Satu hal selesai. Bagus.": "One thing done. Nice work.",
+  "Tugas dibuka kembali.": "Task reopened.",
+  "Tugas dihapus.": "Task deleted.",
+  "tugas": "tasks",
+  "Tambah": "Add",
+  "Satu minggu pada satu waktu.": "One week at a time.",
+  "Perubahan disimpan.": "Changes saved.",
+  "Tugas ditambahkan.": "Task added.",
+  "Buka kembali": "Reopen",
+  "Tandai": "Mark",
+  "selesai": "complete",
+  "Edit": "Edit",
+  "Hapus": "Delete",
+  "Pindah": "Move",
+  "Pindahkan ke hari lain": "Move to another day",
+  "Naikkan urutan": "Move up",
+  "Turunkan urutan": "Move down",
+  "Batal": "Cancel",
+  "Simpan perubahan": "Save changes",
+  "Simpan tugas": "Save task",
+  "Menyimpan…": "Saving…",
+  "Tulis judul agar tugas bisa disimpan.": "Add a title to save this task.",
+  "Judul maksimal 200 karakter.": "Titles can be up to 200 characters.",
+  "Belum tersimpan. Draft tetap ada, silakan coba lagi.": "Not saved. Your draft is still here; please try again.",
+  "Preferensi disimpan di browser ini.": "Settings saved in this browser.",
+  "Pratinjau lokal · data tersimpan di browser ini": "Local preview · data is saved in this browser",
+  "SEN": "MON",
+  "SEL": "TUE",
+  "RAB": "WED",
+  "KAM": "THU",
+  "JUM": "FRI",
+  "SAB": "SAT",
+  "MIN": "SUN",
   "Minggumu tidak harus sempurna. Cukup punya arah.": "Your week does not need to be perfect. It just needs a direction.",
   "Waktunya menyusun ulang": "Time to reset",
   "Kata sandi perlu berisi setidaknya 8 karakter.": "Password must contain at least 8 characters.",
@@ -121,17 +201,92 @@ const translations: Record<string, string> = {
   "Email atau kata sandi tidak sesuai.": "Email or password is incorrect.",
   "Akun dengan email ini sudah ada.": "An account with this email already exists.",
   "Tidak ada akun dengan email ini.": "No account exists with this email.",
-  "Tema tampilan": "Appearance theme", "Hari pertama minggu": "First day of the week",
-  "Buka planner mingguan": "Open weekly planner", "Menu akun": "Account menu",
-  "Ubah bahasa": "Change language", "Inggris": "English", "Bahasa Indonesia": "Indonesian",
+  "Tema tampilan": "Appearance theme",
+  "Hari pertama minggu": "First day of the week",
+  "Buka planner mingguan": "Open weekly planner",
+  "Menu akun": "Account menu",
+  "Ubah bahasa": "Change language",
+  "Inggris": "English",
+  "Bahasa Indonesia": "Indonesian",
+  "Change language to English": "Ubah bahasa ke Inggris",
+  "Change language to Indonesian": "Ubah bahasa ke Indonesia",
+  "Weekflow, beranda": "Weekflow, home",
+  "Planner mingguan": "Weekly planner",
+  "Satu akun, satu minggu yang lebih tertata.": "One account, a more organized week.",
+  "Masuk untuk membuka planner mingguanmu.": "Sign in to open your weekly planner.",
+  "Sebentar…": "One moment…",
+  "Masuk ke Weekflow": "Sign in to Weekflow",
+  "TANGKAP DULU": "CAPTURE IT FIRST",
+  "RAPIKAN RENCANA": "REFINE YOUR PLAN",
+  "Ubah tugas": "Edit task",
+  "Tambahkan satu hal.": "Add one thing.",
+  "Rencanamu boleh berubah bentuk.": "Your plans can change shape.",
+  "Tidak perlu tahu semuanya sekarang.": "You do not need to figure it all out now.",
+  "Simpan tanpa tanggal": "Save without a date",
+  "RUANG PRIBADIMU": "YOUR PERSONAL SPACE",
+  "Preferensi kecil,": "Small preferences,",
+  "Sinkronisasi akun akan": "Account syncing will",
+  "tersedia setelah backend Weekflow terhubung.": "be available once the Weekflow backend is connected.",
+  "Pengaturan tersimpan di perangkat ini. Sinkronisasi akun akan": "Settings are saved on this device. Account syncing will",
+  "Pengaturan tersimpan di perangkat ini. Sinkronisasi akun akan tersedia setelah backend Weekflow terhubung.": "Settings are saved on this device. Account syncing will be available once the Weekflow backend is connected.",
+  "Pikiranmu boleh mendarat di sini.": "Let your thoughts land here.",
+  "Tidak ada yang tertinggal tanpa rencana.": "Nothing is left without a plan.",
+  "Masukkan alamat email yang valid.": "Enter a valid email address.",
+  "Email ini sudah terdaftar di pratinjau browser ini. Coba masuk.": "This email is already registered in this browser preview. Try signing in.",
+  "Akun pratinjau ini belum ditemukan. Buat akun terlebih dahulu di browser ini.": "This preview account was not found. Create an account in this browser first.",
+  "Data lokal tidak dapat dibaca.": "Local data could not be read.",
+  "Penyimpanan browser penuh. Hapus beberapa tugas lalu coba lagi.": "Browser storage is full. Delete a few tasks and try again.",
+  "Judul tugas harus berisi 1 sampai 200 karakter.": "Task titles must be 1 to 200 characters.",
+  "Tugas ini sudah tidak tersedia.": "This task is no longer available.",
+  "Pilih satu hal yang paling penting": "Choose one thing that matters most",
+  "Beri jeda di antara rencana": "Leave some breathing room between plans",
+  "Catat ide untuk minggu depan": "Save an idea for next week",
+  "UNTUK SEKARANG": "FOR NOW",
+  "Rencana yang": "Plans that",
+  "Tanggal baru": "New date",
+  "Pindah ke atas": "Move up",
+  "Pindah ke bawah": "Move down",
+  "Hapus tugas": "Delete task",
+  "FITUR": "FEATURES",
+  "Semua hal kecil,": "All the small things,",
+  "dalam satu minggu.": "in one week.",
+  "Tidak ada dasbor rumit. Hanya hari, tugas, dan ruang untuk mengubah rencana.": "No complicated dashboard. Just days, tasks, and room to change your plans.",
+  "Satu minggu sekaligus": "A whole week at once",
+  "Tujuh hari terlihat bersamaan, jadi ritme minggu terlihat sebelum kamu menambah apa pun. Hari ini ditandai, dan tombol sebelumnya, berikutnya, serta minggu ini membawamu ke mana pun.": "Seven days sit side by side, so the shape of your week shows before you add anything. Today is marked, and previous, next and this week take you wherever you need to go.",
+  "Catat dulu, jadwalkan nanti": "Capture now, schedule later",
+  "Belum tahu kapan? Simpan tugas tanpa tanggal di daftar Belum dijadwalkan. Saat harinya jelas, pindahkan lewat tanggal di menu tugas, tanpa perlu drag.": "Not sure when? Keep it without a date in the Unscheduled list. When the day is clear, move it with the date field in the task menu, no dragging needed.",
+  "3 tugas": "3 tasks",
+  "Ubah judul, pindahkan tanggal, atur urutan, tandai selesai, lalu buka kembali kalau berubah pikiran. Semua lewat tombol yang bisa dijangkau keyboard.": "Rename it, move the date, reorder it, mark it done, then reopen it if you change your mind. Every action has a button you can reach from the keyboard.",
+  "Kirim draf ke tim": "Send the team a draft",
+  "Ritme, diatur sendiri": "A rhythm of your own",
+  "Pilih tema terang, gelap, atau ikuti perangkat. Mulai minggu dari Senin atau Minggu, dan ganti bahasa kapan saja. Preferensi tersimpan di browser ini.": "Pick a light or dark theme, or follow your device. Start the week on Monday or Sunday, and switch language anytime. Preferences are saved in this browser.",
+  "Bahasa": "Language",
+  "SATU MINGGU": "ONE WEEK",
+  "PADA SATU WAKTU": "AT A TIME",
+  "Dan hal-hal kecil lainnya: navigasi minggu, penanda hari ini, serta konfirmasi sebelum menghapus tugas.": "And the small things too: week navigation, a today marker, and a confirmation before a task is deleted.",
+  "Data pratinjau tersimpan di browser ini. Sinkronisasi akun menyusul saat backend terhubung.": "Preview data is saved in this browser. Account syncing will follow once the backend is connected.",
+  "Minggu yang lebih ringan,": "A lighter week,",
+  "dimulai dari sini.": "starts here.",
+  "Tidak perlu menyusun semuanya sekaligus. Mulai dari satu tugas, satu hari, satu minggu.": "You do not have to plan it all at once. Start with one task, one day, one week.",
+  "Akun": "Account",
+  "Fitur": "Features",
+  "Kembali ke atas": "Back to top",
+  "© 2026 Weekflow · Pratinjau lokal": "© 2026 Weekflow · Local preview",
+  "Tautan footer": "Footer links",
 };
 
 function LanguageControl() {
   useEffect(() => {
-    const language = localStorage.getItem("weekflow-language") || "id";
     const apply = () => {
       const english = localStorage.getItem("weekflow-language") === "en";
       document.documentElement.lang = english ? "en" : "id";
+      document.title = english
+        ? "Weekflow | Room for a lighter week"
+        : "Weekflow | Ruang untuk minggu yang lebih ringan";
+      const description = document.querySelector<HTMLMetaElement>('meta[name="description"]');
+      if (description) description.content = english
+        ? "A simple weekly planner to organize what needs to get done."
+        : "Planner mingguan sederhana untuk merapikan hal yang perlu dilakukan.";
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       let node: Node | null;
       while ((node = walker.nextNode())) {
@@ -144,6 +299,7 @@ function LanguageControl() {
         }
       }
       document.querySelectorAll<HTMLElement>("[placeholder], [aria-label]").forEach((element) => {
+        if (element.classList.contains("language-toggle")) return;
         for (const attr of ["placeholder", "aria-label"]) {
           const value = element.getAttribute(attr);
           if (!value) continue;
@@ -157,12 +313,12 @@ function LanguageControl() {
       const toggle = document.querySelector<HTMLButtonElement>(".language-toggle");
       const toggleText = english ? "EN" : "ID";
       if (toggle && toggle.textContent !== toggleText) toggle.textContent = toggleText;
-      toggle?.setAttribute("aria-label", english ? "Change language to Indonesian" : "Change language to English");
+      const toggleLabel = english ? "Change language to Indonesian" : "Change language to English";
+      if (toggle?.getAttribute("aria-label") !== toggleLabel) toggle?.setAttribute("aria-label", toggleLabel);
     };
     const observer = new MutationObserver(apply);
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["aria-label", "placeholder"] });
     apply();
-    void language;
     return () => observer.disconnect();
   }, []);
 
@@ -263,9 +419,204 @@ function AppRouterContent() {
   );
 }
 
+function useScrollReveal<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null);
+  useEffect(() => {
+    const root = ref.current;
+    if (!root || typeof window === "undefined") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!("IntersectionObserver" in window)) return;
+    const items = Array.from(
+      root.querySelectorAll<HTMLElement>("[data-reveal]"),
+    );
+    if (!items.length) return;
+    items.forEach((item) => item.classList.add("is-pending"));
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.remove("is-pending");
+          entry.target.classList.add("is-revealed");
+          observer.unobserve(entry.target);
+        });
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -8% 0px" },
+    );
+    items.forEach((item) => observer.observe(item));
+    return () => observer.disconnect();
+  }, []);
+  return ref;
+}
+
+const weekDayLabels = ["SEN", "SEL", "RAB", "KAM", "JUM", "SAB", "MIN"];
+
+function LandingFeatures() {
+  const revealRef = useScrollReveal<HTMLElement>();
+  return (
+    <section
+      className="landing-features"
+      id="fitur"
+      aria-labelledby="features-heading"
+      ref={revealRef}
+    >
+      <div className="features-intro" data-reveal>
+        <span className="section-pill">FITUR</span>
+        <h2 id="features-heading">
+          Semua hal kecil, <em>dalam satu minggu.</em>
+        </h2>
+        <p>
+          Tidak ada dasbor rumit. Hanya hari, tugas, dan ruang untuk mengubah
+          rencana.
+        </p>
+      </div>
+      <div className="feature-grid">
+        <article className="feature-card" data-reveal>
+          <div className="feature-visual mini-week" aria-hidden="true">
+            <div className="mini-week-bar">
+              <span>MINGGU INI</span>
+              <span className="mini-nav">
+                <FaArrowLeft />
+                <FaArrowRight />
+              </span>
+            </div>
+            <div className="mini-week-days">
+              {weekDayLabels.map((day, index) => (
+                <div
+                  className={index === 3 ? "mini-day is-today" : "mini-day"}
+                  key={day}
+                >
+                  <span>{day}</span>
+                  <i className="mini-bar" />
+                  <i className="mini-bar" />
+                  {index === 3 && <em>Hari ini</em>}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="feature-copy">
+            <h3>Satu minggu sekaligus</h3>
+            <p>
+              Tujuh hari terlihat bersamaan, jadi ritme minggu terlihat sebelum
+              kamu menambah apa pun. Hari ini ditandai, dan tombol sebelumnya,
+              berikutnya, serta minggu ini membawamu ke mana pun.
+            </p>
+          </div>
+        </article>
+
+        <article className="feature-card" data-reveal>
+          <div className="feature-visual mini-inbox" aria-hidden="true">
+            <div className="mini-inbox-head">
+              <span className="mini-inbox-icon">
+                <FaArrowDown />
+              </span>
+              <div>
+                <strong>Belum dijadwalkan</strong>
+                <span className="mini-count">3 tugas</span>
+              </div>
+            </div>
+            <div className="mini-task">
+              <span className="mini-check" />
+              <span>Catat ide untuk minggu depan</span>
+            </div>
+            <div className="mini-task">
+              <span className="mini-check" />
+              <span>Beri jeda di antara rencana</span>
+            </div>
+            <div className="mini-task">
+              <span className="mini-check" />
+              <span>Pilih satu hal yang paling penting</span>
+            </div>
+          </div>
+          <div className="feature-copy">
+            <h3>Catat dulu, jadwalkan nanti</h3>
+            <p>
+              Belum tahu kapan? Simpan tugas tanpa tanggal di daftar Belum
+              dijadwalkan. Saat harinya jelas, pindahkan lewat tanggal di menu
+              tugas, tanpa perlu drag.
+            </p>
+          </div>
+        </article>
+
+        <article className="feature-card feature-card-wide" data-reveal>
+          <div className="feature-copy">
+            <h3>Rencana boleh berubah.</h3>
+            <p>
+              Ubah judul, pindahkan tanggal, atur urutan, tandai selesai, lalu
+              buka kembali kalau berubah pikiran. Semua lewat tombol yang bisa
+              dijangkau keyboard.
+            </p>
+          </div>
+          <div className="feature-visual mini-board" aria-hidden="true">
+            <div className="mini-day-column">
+              <span className="mini-day-title">KAM</span>
+              <div className="mini-task is-selected">
+                <span className="mini-check" />
+                <span>Kirim draf ke tim</span>
+                <span className="mini-dots">
+                  <FaEllipsisH />
+                </span>
+              </div>
+              <div className="mini-task">
+                <span className="mini-check is-done">
+                  <FaCheck />
+                </span>
+                <span>Rencana yang cukup</span>
+              </div>
+            </div>
+            <div className="mini-menu">
+              <span className="mini-menu-label">Tanggal baru</span>
+              <span className="mini-menu-input">20 / 11 / 2026</span>
+              <span>Simpan tanpa tanggal</span>
+              <span>Pindah ke atas</span>
+              <span>Pindah ke bawah</span>
+            </div>
+          </div>
+        </article>
+
+        <article className="feature-card feature-card-narrow" data-reveal>
+          <div className="feature-visual mini-prefs" aria-hidden="true">
+            <div className="mini-pref-row">
+              <span>Tampilan</span>
+              <span className="mini-chip is-active">Terang</span>
+              <span className="mini-chip">Gelap</span>
+              <span className="mini-chip">Ikuti perangkat</span>
+            </div>
+            <div className="mini-pref-row">
+              <span>Awal minggu</span>
+              <span className="mini-chip is-active">Senin</span>
+              <span className="mini-chip">Minggu</span>
+            </div>
+            <div className="mini-pref-row">
+              <span>Bahasa</span>
+              <span className="mini-chip">ID</span>
+              <span className="mini-chip">EN</span>
+            </div>
+          </div>
+          <div className="feature-copy">
+            <h3>Ritme, diatur sendiri</h3>
+            <p>
+              Pilih tema terang, gelap, atau ikuti perangkat. Mulai minggu dari
+              Senin atau Minggu, dan ganti bahasa kapan saja. Preferensi
+              tersimpan di browser ini.
+            </p>
+          </div>
+        </article>
+      </div>
+      <p className="features-more" data-reveal>
+        Dan hal-hal kecil lainnya: navigasi minggu, penanda hari ini, serta
+        konfirmasi sebelum menghapus tugas.
+      </p>
+      <p className="features-note" data-reveal>
+        Data pratinjau tersimpan di browser ini. Sinkronisasi akun menyusul
+        saat backend terhubung.
+      </p>
+    </section>
+  );
+}
+
 function Landing({ session }: { session: LocalSession | null }) {
   return (
-    <main className="landing-shell">
+    <main className="landing-shell" id="top">
       <header className="landing-header">
         <Brand />
         <nav aria-label="Navigasi utama">
@@ -365,24 +716,112 @@ function Landing({ session }: { session: LocalSession | null }) {
           </div>
         </div>
       </section>
-      <section className="landing-footer">
-        <div>
-          <span className="footer-kicker">SENIN SAMPAI MINGGU</span>
-          <span>Semua hari punya tempatnya.</span>
-        </div>
-        <div>
-          <span className="footer-kicker">TANPA TANGGAL</span>
-          <span>Simpan ide untuk nanti.</span>
-        </div>
-        <div>
-          <span className="footer-kicker">BUAT JALANMU SENDIRI</span>
-          <span>Rencana boleh berubah.</span>
-        </div>
-        <span className="footer-sprig" aria-hidden="true">
-          <FaSun />
-        </span>
-      </section>
+      <LandingFeatures />
+      <LandingFooter session={session} />
     </main>
+  );
+}
+
+function LandingFooter({ session }: { session: LocalSession | null }) {
+  return (
+    <footer className="landing-footer">
+      <div className="footer-card">
+        <div className="footer-top">
+          <div className="footer-brand">
+            <Brand />
+            <h2 className="footer-heading">
+              Minggu yang lebih ringan,
+              <br />
+              <em>dimulai dari sini.</em>
+            </h2>
+            <p className="footer-lede">
+              Tidak perlu menyusun semuanya sekaligus. Mulai dari satu tugas,
+              satu hari, satu minggu.
+            </p>
+            <Link
+              className="button button-primary footer-cta"
+              href={session ? "/planner" : "/register"}
+            >
+              {session ? "Buka planner" : "Susun minggu saya"}
+              <FaArrowRight aria-hidden="true" />
+            </Link>
+          </div>
+          <nav className="footer-links" aria-label="Tautan footer">
+            <div>
+              <h3>Planner</h3>
+              <ul>
+                <li>
+                  <Link href="/planner">
+                    <FaArrowRight aria-hidden="true" />
+                    Minggu ini
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/planner">
+                    <FaArrowRight aria-hidden="true" />
+                    Belum dijadwalkan
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/settings">
+                    <FaArrowRight aria-hidden="true" />
+                    Preferensi
+                  </Link>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h3>Akun</h3>
+              <ul>
+                <li>
+                  <Link href={session ? "/planner" : "/login"}>
+                    <FaArrowRight aria-hidden="true" />
+                    Masuk
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/register">
+                    <FaArrowRight aria-hidden="true" />
+                    Daftar
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          </nav>
+        </div>
+        <div className="footer-art" aria-hidden="true">
+          <span className="footer-tile tile-sun">
+            <FaSun />
+          </span>
+          <span className="footer-tile tile-week">7</span>
+          <span className="footer-tile tile-check">
+            <FaCheck />
+          </span>
+          <span className="footer-tile tile-plus">
+            <FaPlus />
+          </span>
+          <span className="footer-tile tile-menu">
+            <FaEllipsisH />
+          </span>
+          <span className="footer-tile tile-next">
+            <FaArrowRight />
+          </span>
+          <span className="footer-tile tile-up">
+            <FaArrowUp />
+          </span>
+          <span className="footer-tile tile-circle">
+            <FaRegCircle />
+          </span>
+        </div>
+        <div className="footer-bottom">
+          <span>© 2026 Weekflow · Pratinjau lokal</span>
+          <div>
+            <Link href="#fitur">Fitur</Link>
+            <Link href="#top">Kembali ke atas</Link>
+          </div>
+        </div>
+      </div>
+    </footer>
   );
 }
 
@@ -871,7 +1310,7 @@ function Planner({
                             }
                             onEdit={() => setEditor({ task, date: key })}
                             onDelete={() => {
-                              if (window.confirm(`Hapus “${task.title}”?`))
+                              if (window.confirm(localStorage.getItem("weekflow-language") === "en" ? `Delete “${task.title}”?` : `Hapus “${task.title}”?`))
                                 runMutation(
                                   () => deleteTask(session.email, task.id),
                                   "Tugas dihapus.",
@@ -916,7 +1355,9 @@ function Planner({
             </div>
             <span className="task-count">
               {unscheduled.length}{" "}
-              {unscheduled.length === 1 ? "tugas" : "tugas"}
+              {localStorage.getItem("weekflow-language") === "en"
+                ? unscheduled.length === 1 ? "task" : "tasks"
+                : "tugas"}
             </span>
             <button
               className="button button-soft unscheduled-add"
@@ -946,7 +1387,7 @@ function Planner({
                   }
                   onEdit={() => setEditor({ task, date: null })}
                   onDelete={() => {
-                    if (window.confirm(`Hapus “${task.title}”?`))
+                    if (window.confirm(localStorage.getItem("weekflow-language") === "en" ? `Delete “${task.title}”?` : `Hapus “${task.title}”?`))
                       runMutation(
                         () => deleteTask(session.email, task.id),
                         "Tugas dihapus.",
@@ -1081,8 +1522,8 @@ function TaskCard({
         type="button"
         aria-label={
           task.completed
-            ? `Buka kembali ${task.title}`
-            : `Tandai ${task.title} selesai`
+            ? `${typeof window !== "undefined" && localStorage.getItem("weekflow-language") === "en" ? "Reopen" : "Buka kembali"} ${task.title}`
+            : `${typeof window !== "undefined" && localStorage.getItem("weekflow-language") === "en" ? "Mark" : "Tandai"} ${task.title} ${typeof window !== "undefined" && localStorage.getItem("weekflow-language") === "en" ? "complete" : "selesai"}`
         }
         aria-pressed={task.completed}
         onClick={onToggle}
@@ -1096,7 +1537,7 @@ function TaskCard({
         <button
           ref={triggerRef}
           className="task-menu-trigger"
-          aria-label={`Aksi untuk ${task.title}`}
+          aria-label={`${typeof window !== "undefined" && localStorage.getItem("weekflow-language") === "en" ? "Actions for" : "Aksi untuk"} ${task.title}`}
           aria-expanded={open}
           onClick={(event) => {
             if (!open) {
@@ -1125,7 +1566,7 @@ function TaskCard({
               Tanggal baru
               <input
                 id={`move-date-${task.id}`}
-                aria-label={`Pindahkan ${task.title} ke tanggal`}
+                aria-label={`${typeof window !== "undefined" && localStorage.getItem("weekflow-language") === "en" ? "Move" : "Pindahkan"} ${task.title} ${typeof window !== "undefined" && localStorage.getItem("weekflow-language") === "en" ? "to date" : "ke tanggal"}`}
                 type="date"
                 value={task.scheduledDate ?? ""}
                 onChange={(event) => {
