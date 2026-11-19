@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Weekflow">
+  <g transform="translate(32 32) rotate(-5) translate(-25 -25)">
+    <rect width="50" height="50" rx="10.71" fill="#304f43" />
+    <circle cx="14.29" cy="14.29" r="7.14" fill="#f2f0eb" fill-opacity="0.88" />
+    <circle cx="35.71" cy="14.29" r="7.14" fill="#f2f0eb" fill-opacity="0.55" />
+    <circle cx="14.29" cy="35.71" r="7.14" fill="#f2f0eb" fill-opacity="0.68" />
+    <circle cx="35.71" cy="35.71" r="7.14" fill="#f2f0eb" fill-opacity="0.88" />
+  </g>
+</svg>
