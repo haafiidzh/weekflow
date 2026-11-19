@@ -1,209 +1,156 @@
+export type Priority = "low" | "medium" | "high";
+
 export type Task = {
   id: string;
   title: string;
   scheduledDate: string | null;
   completed: boolean;
   position: number;
+  priority: Priority;
+  description: string;
+  note: string;
 };
 
-const keyFor = (email: string) =>
-  `weekflow-preview-tasks:${email.trim().toLowerCase()}`;
-const currentDay = () => {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+export type TaskDetails = {
+  title: string;
+  scheduledDate: string | null;
+  priority: Priority;
+  description: string;
+  note: string;
 };
 
-function read(email: string): Task[] {
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(keyFor(email)) || "[]");
-    if (!Array.isArray(value)) throw new Error("Task storage must be a list.");
-    return value as Task[];
-  } catch {
-    throw new Error("Data lokal tidak dapat dibaca.");
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
+    ...init,
+    // FormData needs the browser to set the multipart boundary itself.
+    headers:
+      init?.body instanceof FormData
+        ? init.headers
+        : { "content-type": "application/json", ...init?.headers },
+    credentials: "same-origin",
+  });
+  if (!response.ok) {
+    let message = "Permintaan gagal.";
+    try {
+      message = ((await response.json()) as { error?: string }).error ?? message;
+    } catch {}
+    throw new Error(message);
   }
+  return (await response.json()) as T;
 }
 
-function write(email: string, tasks: Task[]) {
-  try {
-    localStorage.setItem(keyFor(email), JSON.stringify(tasks));
-  } catch {
-    throw new Error(
-      "Penyimpanan browser penuh. Hapus beberapa tugas lalu coba lagi.",
-    );
-  }
+export async function listTasks(from: string, through: string): Promise<Task[]> {
+  const query = new URLSearchParams({ from, through });
+  return (await request<{ tasks: Task[] }>(`/api/tasks?${query}`)).tasks;
 }
 
-export function listTasks(
-  email: string,
-  from?: string,
-  through?: string,
-): Task[] {
-  return read(email).filter((task) => {
-    if (!from || !through) return true;
-    return (
-      task.scheduledDate !== null &&
-      task.scheduledDate >= from &&
-      task.scheduledDate <= through
-    );
+export async function listUnscheduledTasks(): Promise<Task[]> {
+  return (await request<{ tasks: Task[] }>("/api/tasks?unscheduled=1")).tasks;
+}
+
+export async function createTask(details: TaskDetails): Promise<Task> {
+  return (
+    await request<{ task: Task }>("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify(details),
+    })
+  ).task;
+}
+
+function patch(id: string, body: Record<string, unknown>) {
+  return request<{ task: Task }>(`/api/tasks/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  }).then((result) => result.task);
+}
+
+export const updateTask = (id: string, details: TaskDetails) =>
+  patch(id, { ...details });
+
+export const setTaskPriority = (id: string, priority: Priority) =>
+  patch(id, { priority });
+
+export const moveTask = (id: string, scheduledDate: string | null) =>
+  patch(id, { scheduledDate });
+
+export const setTaskCompletion = (id: string, completed: boolean) =>
+  patch(id, { completed });
+
+export async function deleteTask(id: string): Promise<void> {
+  await request(`/api/tasks/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/** Swap positions with the neighbour in the same list. */
+export async function reorderTask(
+  current: Task,
+  neighbour: Task,
+): Promise<void> {
+  await Promise.all([
+    patch(current.id, { position: neighbour.position }),
+    patch(neighbour.id, { position: current.position }),
+  ]);
+}
+
+export type Profile = {
+  firstName: string;
+  lastName: string;
+  name: string;
+  avatarUrl: string | null;
+};
+
+export const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+
+export function updateProfileNames(firstName: string, lastName: string) {
+  return request<Profile>("/api/profile", {
+    method: "PATCH",
+    body: JSON.stringify({ firstName, lastName }),
   });
 }
 
-export function createTask(
-  email: string,
-  title: string,
-  scheduledDate: string | null,
-): Task {
-  const tasks = read(email);
-  const inList = tasks.filter((task) => task.scheduledDate === scheduledDate);
-  const task: Task = {
-    id: globalThis.crypto?.randomUUID?.() ?? `task-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    title: title.trim(),
-    scheduledDate,
-    completed: false,
-    position: Math.max(0, ...inList.map((item) => item.position)) + 1024,
-  };
-  if (!task.title || task.title.length > 200)
-    throw new Error("Judul tugas harus berisi 1 sampai 200 karakter.");
-  write(email, [...tasks, task]);
-  return task;
+export function uploadAvatar(blob: Blob) {
+  const form = new FormData();
+  form.set("file", blob, "avatar.jpg");
+  // Let the browser set the multipart boundary header.
+  return request<Profile>("/api/profile/avatar", {
+    method: "POST",
+    body: form,
+  });
 }
 
-export function updateTask(
-  email: string,
-  id: string,
-  title: string,
-  scheduledDate: string | null,
-): Task {
-  const tasks = read(email);
-  const current = tasks.find((task) => task.id === id);
-  if (!current) throw new Error("Tugas ini sudah tidak tersedia.");
-  const cleanTitle = title.trim();
-  if (!cleanTitle || cleanTitle.length > 200)
-    throw new Error("Judul tugas harus berisi 1 sampai 200 karakter.");
-  const changedList = current.scheduledDate !== scheduledDate;
-  const position = changedList
-    ? Math.max(
-        0,
-        ...tasks
-          .filter(
-            (task) => task.scheduledDate === scheduledDate && task.id !== id,
-          )
-          .map((task) => task.position),
-      ) + 1024
-    : current.position;
-  const next = { ...current, title: cleanTitle, scheduledDate, position };
-  write(
-    email,
-    tasks.map((task) => (task.id === id ? next : task)),
-  );
-  return next;
+export function deleteAvatar() {
+  return request<Profile>("/api/profile/avatar", { method: "DELETE" });
 }
 
-export function deleteTask(email: string, id: string) {
-  const tasks = read(email);
-  write(
-    email,
-    tasks.filter((task) => task.id !== id),
-  );
+export function syncProfile() {
+  return request<Profile>("/api/profile/sync", { method: "POST" });
 }
 
-export function moveTask(
-  email: string,
-  id: string,
-  scheduledDate: string | null,
-): Task {
-  const tasks = read(email);
-  const current = tasks.find((task) => task.id === id);
-  if (!current) throw new Error("Tugas ini sudah tidak tersedia.");
-  const position =
-    Math.max(
-      0,
-      ...tasks
-        .filter(
-          (task) => task.scheduledDate === scheduledDate && task.id !== id,
-        )
-        .map((task) => task.position),
-    ) + 1024;
-  const next = { ...current, scheduledDate, position };
-  write(
-    email,
-    tasks.map((task) => (task.id === id ? next : task)),
-  );
-  return next;
+export type CalendarEvent = {
+  id: string;
+  title: string;
+  date: string;
+  start: string | null;
+  end: string | null;
+  allDay: boolean;
+};
+
+export async function getCalendarStatus(): Promise<boolean> {
+  return (await request<{ connected: boolean }>("/api/integrations/google-calendar"))
+    .connected;
 }
 
-export function reorderTask(email: string, id: string, direction: -1 | 1) {
-  const tasks = read(email);
-  const current = tasks.find((task) => task.id === id);
-  if (!current) throw new Error("Tugas ini sudah tidak tersedia.");
-  const list = tasks
-    .filter((task) => task.scheduledDate === current.scheduledDate)
-    .sort((a, b) => a.position - b.position);
-  const index = list.findIndex((task) => task.id === id);
-  const other = list[index + direction];
-  if (!other) return;
-  const oldPosition = current.position;
-  write(
-    email,
-    tasks.map((task) =>
-      task.id === current.id
-        ? { ...task, position: other.position }
-        : task.id === other.id
-          ? { ...task, position: oldPosition }
-          : task,
-    ),
-  );
+export async function listCalendarEvents(
+  from: string,
+  through: string,
+): Promise<CalendarEvent[]> {
+  const query = new URLSearchParams({ from, through });
+  return (
+    await request<{ events: CalendarEvent[] }>(`/api/integrations/google-calendar?${query}`)
+  ).events;
 }
 
-export function setTaskCompletion(
-  email: string,
-  id: string,
-  completed: boolean,
-) {
-  const tasks = read(email);
-  if (!tasks.some((task) => task.id === id))
-    throw new Error("Tugas ini sudah tidak tersedia.");
-  write(
-    email,
-    tasks.map((task) => (task.id === id ? { ...task, completed } : task)),
-  );
-}
-
-export function seedPreviewTasks(email: string) {
-  const storageKey = keyFor(email);
-  if (localStorage.getItem(storageKey)) return;
-  const [year, month, day] = currentDay().split("-").map(Number);
-  const today = new Date(year, month - 1, day);
-  const monday = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate() - ((today.getDay() + 6) % 7),
-  );
-  const format = (date: Date) =>
-    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  write(email, [
-    {
-      id: crypto.randomUUID(),
-      title: "Pilih satu hal yang paling penting",
-      scheduledDate: format(today),
-      completed: false,
-      position: 1024,
-    },
-    {
-      id: crypto.randomUUID(),
-      title: "Beri jeda di antara rencana",
-      scheduledDate: format(
-        new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 2),
-      ),
-      completed: false,
-      position: 1024,
-    },
-    {
-      id: crypto.randomUUID(),
-      title: "Catat ide untuk minggu depan",
-      scheduledDate: null,
-      completed: false,
-      position: 1024,
-    },
-  ]);
+export async function disconnectCalendar(): Promise<void> {
+  await request<{ connected: boolean }>("/api/integrations/google-calendar", {
+    method: "DELETE",
+  });
 }

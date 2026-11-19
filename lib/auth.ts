@@ -4,85 +4,33 @@ export type LocalSession = {
   name: string;
   /** Whether Appwrite has confirmed that the account owns this email address. */
   emailVerification: boolean;
+  firstName: string;
+  lastName: string;
+  /** Same-origin URL of the private avatar, or null when none is set. */
+  avatarUrl: string | null;
 };
-import { seedPreviewTasks } from "@/lib/data";
 
-const SESSION_KEY = "weekflow-preview-session";
-const ACCOUNTS_KEY = "weekflow-preview-accounts";
+type UserLike = {
+  $id: string;
+  email: string;
+  name: string;
+  emailVerification: boolean;
+  prefs?: Record<string, unknown> | null;
+};
 
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
-
-function readAccounts(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || "[]") as string[];
-  } catch {
-    return [];
-  }
-}
-
-export function getSession(): LocalSession | null {
-  try {
-    const raw = localStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
-    const parsed: { email: string; name?: string; emailVerification?: boolean } = JSON.parse(raw);
-    return {
-      id: crypto.randomUUID(),
-      email: parsed.email,
-      name: parsed.name || parsed.email.split("@")[0],
-      emailVerification: parsed.emailVerification ?? false,
-    };
-  } catch {
-    return null;
-  }
-}
-
-export function signUp(email: string, password: string): LocalSession {
-  const cleanEmail = normalizeEmail(email);
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))
-    throw new Error("Masukkan alamat email yang valid.");
-  if (password.length < 8)
-    throw new Error("Kata sandi perlu berisi setidaknya 8 karakter.");
-  const accounts = readAccounts();
-  if (accounts.includes(cleanEmail))
-    throw new Error(
-      "Email ini sudah terdaftar di pratinjau browser ini. Coba masuk.",
-    );
-  accounts.push(cleanEmail);
-  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
-  seedPreviewTasks(cleanEmail);
-  const session: LocalSession = {
-    id: crypto.randomUUID(),
-    email: cleanEmail,
-    name: cleanEmail.split("@")[0],
-    emailVerification: false,
+export function toLocalSession(user: UserLike): LocalSession {
+  const prefs = user.prefs ?? {};
+  const text = (value: unknown) => (typeof value === "string" ? value : "");
+  const avatarId = text(prefs.avatarId);
+  return {
+    id: user.$id,
+    email: user.email,
+    name: user.name || user.email.split("@")[0],
+    emailVerification: user.emailVerification,
+    firstName: text(prefs.firstName),
+    lastName: text(prefs.lastName),
+    avatarUrl: avatarId
+      ? `/api/profile/avatar?v=${encodeURIComponent(avatarId)}`
+      : null,
   };
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  seedPreviewTasks(cleanEmail);
-  return session;
-}
-
-export function signIn(email: string, password: string): LocalSession {
-  const cleanEmail = normalizeEmail(email);
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))
-    throw new Error("Masukkan alamat email yang valid.");
-  if (password.length < 8)
-    throw new Error("Kata sandi perlu berisi setidaknya 8 karakter.");
-  if (!readAccounts().includes(cleanEmail))
-    throw new Error(
-      "Akun pratinjau ini belum ditemukan. Buat akun terlebih dahulu di browser ini.",
-    );
-  const session: LocalSession = {
-    id: crypto.randomUUID(),
-    email: cleanEmail,
-    name: cleanEmail.split("@")[0],
-    emailVerification: false,
-  };
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  return session;
-}
-
-export function signOut() {
-  localStorage.removeItem(SESSION_KEY);
 }
