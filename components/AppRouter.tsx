@@ -2,8 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { createPortal } from "react-dom";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { OAuthProvider, useAuth } from "@appwrite.io/react";
+import { createPortal, flushSync } from "react-dom";
+import { ModalFrame, useModalClose } from "./Modal";
+import { AnalyticsBoard, AnalyticsPeek } from "./Analytics";
+import { Avatar, ProfileSection } from "./ProfileEditor";
+import { IntegrationsDialog, IntegrationsRow } from "./Integrations";
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   FaArrowDown,
   FaArrowLeft,
@@ -11,10 +16,18 @@ import {
   FaArrowUp,
   FaCheck,
   FaChevronDown,
+  FaChevronLeft,
+  FaChevronRight,
   FaEllipsisH,
+  FaEye,
+  FaEyeSlash,
+  FaColumns,
+  FaListUl,
   FaExclamationCircle,
   FaExternalLinkAlt,
+  FaGoogle,
   FaPlus,
+  FaRegCalendarAlt,
   FaRegCircle,
   FaSun,
   FaTimes,
@@ -23,17 +36,19 @@ import {
   createTask,
   deleteTask,
   listTasks,
+  listUnscheduledTasks,
   moveTask,
   reorderTask,
   setTaskCompletion,
+  syncProfile,
   updateTask,
+  setTaskPriority,
+  type Priority,
+  type TaskDetails,
   type Task,
 } from "@/lib/data";
 import {
-  getSession,
-  signIn,
-  signOut,
-  signUp,
+  toLocalSession,
   type LocalSession,
 } from "@/lib/auth";
 
@@ -51,19 +66,71 @@ const mondayOf = (date: Date, weekStarts = 1) => {
   result.setDate(result.getDate() - offset);
   return result;
 };
+/** Week start (0 = Sunday, 1 = Monday) shared with every calendar popup. */
+const WeekStartContext = createContext(1);
+const isEnglish = () => {
+  try {
+    return (
+      typeof window !== "undefined" &&
+      window.localStorage.getItem("weekflow-language") === "en"
+    );
+  } catch {
+    return false;
+  }
+};
 const dateLabel = (date: Date, options: Intl.DateTimeFormatOptions) => {
-  const locale =
-    typeof window !== "undefined" &&
-    window.localStorage.getItem("weekflow-language") === "en"
-      ? "en-US"
-      : "id-ID";
+  const locale = isEnglish() ? "en-US" : "id-ID";
   return new Intl.DateTimeFormat(locale, options).format(date);
 };
 const todayKey = dayKey(new Date());
+const priorityLabel = (priority: Priority) =>
+  isEnglish()
+    ? { low: "Low", medium: "Medium", high: "High" }[priority]
+    : { low: "Rendah", medium: "Sedang", high: "Tinggi" }[priority];
 
 const translations: Record<string, string> = {
+  "Integrasi": "Integrations",
+  "Integrasikan": "Integrate",
+  "INTEGRASI": "INTEGRATIONS",
+  "Integrasi dan layanan": "Integrations and services",
+  "Hubungkan Weekflow dengan aplikasi yang sudah kamu pakai setiap hari.": "Connect Weekflow with the apps you already use every day.",
+  "Cari integrasi…": "Search integrations…",
+  "Cari integrasi": "Search integrations",
+  "Kategori integrasi": "Integration categories",
+  "Semua": "All",
+  "Kalender": "Calendar",
+  "Komunikasi": "Communication",
+  "Hubungkan": "Connect",
+  "Putuskan": "Disconnect",
+  "Google Calendar belum bisa diputuskan. Coba lagi.": "Could not disconnect Google Calendar. Try again.",
+  "Terhubung": "Connected",
+  "Terhubung ke Google": "Connected to Google",
+  "Memeriksa…": "Checking…",
+  "Google Calendar belum bisa dihubungkan. Coba lagi.": "Could not connect Google Calendar. Try again.",
+  "Integrasi lainnya": "More integrations",
+  "Aplikasi lain akan segera hadir.": "More apps are coming soon.",
+  "Integrasi untuk kategori ini segera hadir.": "Integrations for this category are coming soon.",
+  "Segera hadir": "Coming soon",
+  "Tidak ada integrasi yang cocok.": "No matching integrations.",
+  "Tugas yang punya tanggal otomatis muncul di Google Calendar sebagai acara sehari penuh.": "Tasks with a date automatically appear in Google Calendar as all-day events.",
+  "Hubungkan akun Google": "Connect Google account",
+  "Tarik daftar tugas dari database Notion ke minggumu.": "Pull tasks from a Notion database into your week.",
+  "Hubungkan workspace": "Connect workspace",
+  "Sinkronkan tugas Todoist agar satu daftar tetap rapi.": "Sync Todoist tasks to keep a single tidy list.",
+  "Hubungkan Todoist": "Connect Todoist",
+  "Ubah kartu Trello yang punya tenggat menjadi tugas harian.": "Turn Trello cards with due dates into daily tasks.",
+  "Hubungkan papan": "Connect board",
+  "Terima ringkasan harian dan pengingat tugas di channel pilihanmu.": "Get daily summaries and task reminders in the channel you choose.",
+  "Atur pengingat": "Set up reminders",
+  "Lampirkan tautan rapat Zoom pada tugas yang punya jadwal.": "Attach Zoom meeting links to scheduled tasks.",
+  "Hubungkan Zoom": "Connect Zoom",
+  "Analitik": "Analytics",
+  "RINGKASAN MINGGUMU": "YOUR WEEK AT A GLANCE",
+  "Lihat ritme": "See the rhythm of",
+  "mingguanmu.": "your week.",
+  "Pantau tugas yang selesai dan yang masih menunggu.": "Track what is done and what is still waiting.",
   "Halaman ini belum tersedia": "This page is not available yet",
-  "Periksa alamatnya, atau kembali ke minggu Anda.": "Check the address or return to your week.",
+  "Periksa alamatnya, atau kembali ke minggumu.": "Check the address or return to your week.",
   "Kembali": "Go back",
   "Navigasi utama": "Main navigation",
   "Masuk": "Sign in",
@@ -74,7 +141,7 @@ const translations: Record<string, string> = {
   "yang penting.": "what matters.",
   "Taruh tugas pada harinya, simpan yang belum pasti, lalu jalani minggu dengan kepala lebih ringan.": "Place tasks on the right day, save the uncertain ones for later, and move through your week with a clearer mind.",
   "Susun minggu saya": "Plan my week",
-  "Gratis digunakan · Dirancang untuk penggunaan personal": "Free to use · Made for personal planning",
+  "Gratis dipakai · Dirancang untuk keperluan pribadi": "Free to use · Made for personal planning",
   "Satu minggu, satu langkah yang terasa mungkin.": "One week, one step at a time.",
   "Ilustrasi planner mingguan": "Weekly planner illustration",
   "Rencana yang cukup": "A plan that feels right",
@@ -95,7 +162,7 @@ const translations: Record<string, string> = {
   "Kata sandi": "Password",
   "Minimal 8 karakter": "At least 8 characters",
   "Weekflow · Planner yang memberi ruang": "Weekflow · A planner with room to breathe",
-  "Preferensi": "Settings",
+  "Pengaturan": "Settings",
   "Keluar": "Sign out",
   "Rencanakan dengan": "Plan with",
   "tenang.": "ease.",
@@ -106,17 +173,16 @@ const translations: Record<string, string> = {
   "Pilih hari": "Choose a day",
   "Hari ini": "Today",
   "Planner belum bisa dimuat.": "The planner could not load.",
-  "Periksa lagi sebentar lagi. Data lokalmu tetap ada.": "Please try again shortly. Your local data is still here.",
+  "Coba lagi sebentar lagi. Tugasmu tetap aman.": "Please try again shortly. Your tasks are safe.",
   "Memuat planner": "Loading planner",
   "Ruang untuk hal baru.": "Room for something new.",
-  "Tambah hal": "Add an item",
   "Belum dijadwalkan": "Unscheduled",
   "Catat dulu. Cari harinya nanti.": "Write it down now. Find a day for it later.",
-  "Hal yang belum punya hari juga tetap punya tempat.": "Things without a day still have a place.",
-  "Tulis satu hal": "Add an item",
+  "Tugas yang belum punya hari tetap punya tempat.": "Tasks without a day still have a place.",
+  "Tulis satu tugas": "Add a task",
   "Rencana yang baik memberi ruang untuk berubah.": "A good plan leaves room to change.",
   "Tutup pemberitahuan": "Close notice",
-  "Aksi untuk": "Actions for",
+  "Opsi untuk": "Options for",
   "Pindahkan": "Move",
   "ke tanggal": "to date",
   "Judul tugas": "Task title",
@@ -136,7 +202,8 @@ const translations: Record<string, string> = {
   "Senin": "Monday",
   "Minggu": "Sunday",
   "Akun saat ini": "Current account",
-  "Browser ini": "This browser",
+  "Terverifikasi": "Verified",
+  "Belum diverifikasi": "Not verified",
   "Rencanakan dengan tenang.": "Plan with ease.",
   "nanti": "later",
   "Ruang sederhana untuk mengumpulkan hal-hal yang ingin kamu selesaikan, tanpa harus mengerjakan semuanya sekaligus.": "A simple space to gather what you want to get done, without needing to do it all at once.",
@@ -154,13 +221,19 @@ const translations: Record<string, string> = {
   "Masuk sebagai": "Signed in as",
   "WAKTUNYA MENYUSUN ULANG": "TIME TO RESET",
   "Minggu ini": "This week",
+  "Pilih minggu": "Pick a week",
+  "Pilih minggu lain": "Pick another week",
+  "Bulan sebelumnya": "Previous month",
+  "Bulan berikutnya": "Next month",
+  "Lompat ke minggu ini": "Jump to this week",
   "Tugas": "Tasks",
+  "Perubahan tersimpan, tetapi daftar belum bisa dimuat ulang.": "Changes were saved, but the list could not be reloaded.",
   "Perubahan belum tersimpan. Coba lagi.": "Changes were not saved. Please try again.",
   "Tugas dipindahkan.": "Task moved.",
   "Tugas disimpan tanpa tanggal.": "Task saved without a date.",
   "Urutan tugas diperbarui.": "Task order updated.",
   "Coba lagi": "Try again",
-  "Satu hal selesai. Bagus.": "One thing done. Nice work.",
+  "Satu tugas selesai. Mantap.": "One task done. Nice work.",
   "Tugas dibuka kembali.": "Task reopened.",
   "Tugas dihapus.": "Task deleted.",
   "tugas": "tasks",
@@ -178,14 +251,23 @@ const translations: Record<string, string> = {
   "Naikkan urutan": "Move up",
   "Turunkan urutan": "Move down",
   "Batal": "Cancel",
+  "KELUAR": "SIGN OUT",
+  "Keluar dari Weekflow?": "Sign out of Weekflow?",
+  "Kamu perlu masuk lagi untuk membuka planner. Tugasmu tetap tersimpan di akunmu.": "You will need to sign in again to open your planner. Your tasks stay saved in your account.",
+  "Ya, keluar": "Yes, sign out",
+  "Keluar…": "Signing out…",
   "Simpan perubahan": "Save changes",
   "Simpan tugas": "Save task",
   "Menyimpan…": "Saving…",
   "Tulis judul agar tugas bisa disimpan.": "Add a title to save this task.",
   "Judul maksimal 200 karakter.": "Titles can be up to 200 characters.",
-  "Belum tersimpan. Draft tetap ada, silakan coba lagi.": "Not saved. Your draft is still here; please try again.",
-  "Preferensi disimpan di browser ini.": "Settings saved in this browser.",
-  "Pratinjau lokal · data tersimpan di browser ini": "Local preview · data is saved in this browser",
+  "Belum tersimpan. Tulisanmu masih ada, coba lagi.": "Not saved. Your text is still here; try again.",
+  "Tema diubah ke Terang.": "Theme changed to Light.",
+  "Tema diubah ke Gelap.": "Theme changed to Dark.",
+  "Tema mengikuti perangkat.": "Theme follows your device.",
+  "Minggu dimulai hari Senin.": "Week now starts on Monday.",
+  "Minggu dimulai hari Minggu.": "Week now starts on Sunday.",
+  "Pengaturan disimpan di perangkat ini.": "Settings saved on this device.",
   "SEN": "MON",
   "SEL": "TUE",
   "RAB": "WED",
@@ -195,7 +277,7 @@ const translations: Record<string, string> = {
   "MIN": "SUN",
   "Minggumu tidak harus sempurna. Cukup punya arah.": "Your week does not need to be perfect. It just needs a direction.",
   "Waktunya menyusun ulang": "Time to reset",
-  "Kata sandi perlu berisi setidaknya 8 karakter.": "Password must contain at least 8 characters.",
+  "Kata sandi minimal 8 karakter.": "Password must contain at least 8 characters.",
   "Ada kendala. Coba lagi sebentar.": "Something went wrong. Please try again.",
   "Tugas harus berisi 1 sampai 200 karakter.": "Task titles must be 1 to 200 characters.",
   "Email atau kata sandi tidak sesuai.": "Email or password is incorrect.",
@@ -224,19 +306,49 @@ const translations: Record<string, string> = {
   "Tidak perlu tahu semuanya sekarang.": "You do not need to figure it all out now.",
   "Simpan tanpa tanggal": "Save without a date",
   "RUANG PRIBADIMU": "YOUR PERSONAL SPACE",
-  "Preferensi kecil,": "Small preferences,",
-  "Sinkronisasi akun akan": "Account syncing will",
-  "tersedia setelah backend Weekflow terhubung.": "be available once the Weekflow backend is connected.",
-  "Pengaturan tersimpan di perangkat ini. Sinkronisasi akun akan": "Settings are saved on this device. Account syncing will",
-  "Pengaturan tersimpan di perangkat ini. Sinkronisasi akun akan tersedia setelah backend Weekflow terhubung.": "Settings are saved on this device. Account syncing will be available once the Weekflow backend is connected.",
+  "Foto profil": "Profile photo",
+  "PNG, JPG, atau WebP. Maksimal 2 MB.": "PNG, JPG or WebP. 2 MB maximum.",
+  "Unggah foto": "Upload photo",
+  "Ganti foto": "Change photo",
+  "Hapus foto": "Remove photo",
+  "Nama depan": "First name",
+  "Nama belakang": "Last name",
+  "Simpan profil": "Save profile",
+  "Simpan foto": "Save photo",
+  "Atur fotomu": "Adjust your photo",
+  "Geser untuk memosisikan, lalu atur zoom.": "Drag to position, then adjust the zoom.",
+  "FOTO PROFIL": "PROFILE PHOTO",
+  "Profil disimpan.": "Profile saved.",
+  "Foto dihapus.": "Photo removed.",
+  "Foto diperbarui.": "Photo updated.",
+  "Gunakan gambar PNG, JPG, atau WebP.": "Use a PNG, JPG or WebP image.",
+  "Ukuran foto maksimal 2 MB.": "Photo size must be 2 MB or less.",
+  "Foto gagal diproses. Coba gambar lain.": "Could not process the photo. Try another image.",
+  "File ini bukan gambar yang valid.": "This file is not a valid image.",
+  "Profil gagal disimpan.": "Could not save profile.",
+  "Foto gagal dihapus.": "Could not remove photo.",
+  "Perkecil": "Zoom out",
+  "Perbesar": "Zoom in",
+  "Zoom": "Zoom",
+  "Area potong foto. Gunakan tombol panah untuk menggeser.": "Photo crop area. Use the arrow keys to move the image.",
+  "Avatar must be 2 MB or smaller.": "Photo size must be 2 MB or less.",
+  "Pengaturan sederhana,": "Simple settings,",
+  "Pengaturan tampilan tersimpan di perangkat ini. Tugasmu tersimpan di akunmu.": "Display settings are saved on this device. Your tasks are saved to your account.",
   "Pikiranmu boleh mendarat di sini.": "Let your thoughts land here.",
-  "Tidak ada yang tertinggal tanpa rencana.": "Nothing is left without a plan.",
+  "Semua tugas sudah punya hari.": "Every task has a day.",
   "Masukkan alamat email yang valid.": "Enter a valid email address.",
-  "Email ini sudah terdaftar di pratinjau browser ini. Coba masuk.": "This email is already registered in this browser preview. Try signing in.",
-  "Akun pratinjau ini belum ditemukan. Buat akun terlebih dahulu di browser ini.": "This preview account was not found. Create an account in this browser first.",
+  "Email ini sudah terdaftar. Coba masuk.": "This email is already registered. Try signing in.",
+  "Masuk dengan Google belum berhasil. Coba lagi.": "Google sign-in did not work. Please try again.",
+  "Mengalihkan ke Google…": "Redirecting to Google…",
+  "Daftar dengan Google": "Sign up with Google",
+  "Masuk dengan Google": "Continue with Google",
+  "ATAU DENGAN EMAIL": "OR WITH EMAIL",
+  "Email atau kata sandi tidak cocok.": "Email or password is incorrect.",
+  "Terlalu banyak percobaan. Coba lagi sebentar.": "Too many attempts. Try again shortly.",
+  "Masukkan email yang valid dan kata sandi minimal 8 karakter.": "Enter a valid email and a password of at least 8 characters.",
   "Data lokal tidak dapat dibaca.": "Local data could not be read.",
   "Penyimpanan browser penuh. Hapus beberapa tugas lalu coba lagi.": "Browser storage is full. Delete a few tasks and try again.",
-  "Judul tugas harus berisi 1 sampai 200 karakter.": "Task titles must be 1 to 200 characters.",
+  "Judul tugas harus 1–200 karakter.": "Task titles must be 1 to 200 characters.",
   "Tugas ini sudah tidak tersedia.": "This task is no longer available.",
   "Pilih satu hal yang paling penting": "Choose one thing that matters most",
   "Beri jeda di antara rencana": "Leave some breathing room between plans",
@@ -254,24 +366,23 @@ const translations: Record<string, string> = {
   "Satu minggu sekaligus": "A whole week at once",
   "Tujuh hari terlihat bersamaan, jadi ritme minggu terlihat sebelum kamu menambah apa pun. Hari ini ditandai, dan tombol sebelumnya, berikutnya, serta minggu ini membawamu ke mana pun.": "Seven days sit side by side, so the shape of your week shows before you add anything. Today is marked, and previous, next and this week take you wherever you need to go.",
   "Catat dulu, jadwalkan nanti": "Capture now, schedule later",
-  "Belum tahu kapan? Simpan tugas tanpa tanggal di daftar Belum dijadwalkan. Saat harinya jelas, pindahkan lewat tanggal di menu tugas, tanpa perlu drag.": "Not sure when? Keep it without a date in the Unscheduled list. When the day is clear, move it with the date field in the task menu, no dragging needed.",
+  "Belum tahu kapan? Simpan tugas tanpa tanggal di daftar Belum dijadwalkan. Saat harinya jelas, pindahkan lewat tanggal di menu tugas, tanpa perlu menyeret.": "Not sure when? Keep it without a date in the Unscheduled list. When the day is clear, move it with the date field in the task menu, no dragging needed.",
   "3 tugas": "3 tasks",
   "Ubah judul, pindahkan tanggal, atur urutan, tandai selesai, lalu buka kembali kalau berubah pikiran. Semua lewat tombol yang bisa dijangkau keyboard.": "Rename it, move the date, reorder it, mark it done, then reopen it if you change your mind. Every action has a button you can reach from the keyboard.",
   "Kirim draf ke tim": "Send the team a draft",
   "Ritme, diatur sendiri": "A rhythm of your own",
-  "Pilih tema terang, gelap, atau ikuti perangkat. Mulai minggu dari Senin atau Minggu, dan ganti bahasa kapan saja. Preferensi tersimpan di browser ini.": "Pick a light or dark theme, or follow your device. Start the week on Monday or Sunday, and switch language anytime. Preferences are saved in this browser.",
+  "Pilih tema terang, gelap, atau ikuti perangkat. Mulai minggu dari Senin atau Minggu, dan ganti bahasa kapan saja. Pengaturan tersimpan di perangkat ini.": "Pick a light or dark theme, or follow your device. Start the week on Monday or Sunday, and switch language anytime. Settings are saved on this device.",
   "Bahasa": "Language",
   "SATU MINGGU": "ONE WEEK",
   "PADA SATU WAKTU": "AT A TIME",
   "Dan hal-hal kecil lainnya: navigasi minggu, penanda hari ini, serta konfirmasi sebelum menghapus tugas.": "And the small things too: week navigation, a today marker, and a confirmation before a task is deleted.",
-  "Data pratinjau tersimpan di browser ini. Sinkronisasi akun menyusul saat backend terhubung.": "Preview data is saved in this browser. Account syncing will follow once the backend is connected.",
+  "Tugasmu tersimpan di akun Weekflow, jadi tetap ada saat kamu masuk dari perangkat lain.": "Your tasks are saved to your Weekflow account, so they follow you to any device.",
   "Minggu yang lebih ringan,": "A lighter week,",
   "dimulai dari sini.": "starts here.",
   "Tidak perlu menyusun semuanya sekaligus. Mulai dari satu tugas, satu hari, satu minggu.": "You do not have to plan it all at once. Start with one task, one day, one week.",
   "Akun": "Account",
   "Fitur": "Features",
   "Kembali ke atas": "Back to top",
-  "© 2026 Weekflow · Pratinjau lokal": "© 2026 Weekflow · Local preview",
   "Tautan footer": "Footer links",
 };
 
@@ -317,8 +428,10 @@ function LanguageControl() {
       if (toggle?.getAttribute("aria-label") !== toggleLabel) toggle?.setAttribute("aria-label", toggleLabel);
     };
     const observer = new MutationObserver(apply);
+    const reveal = () => document.documentElement.setAttribute("data-lang-ready", "");
     observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["aria-label", "placeholder"] });
     apply();
+    reveal();
     return () => observer.disconnect();
   }, []);
 
@@ -348,38 +461,63 @@ function Brand({ inverse = false }: { inverse?: boolean }) {
   );
 }
 
-function PreviewNotice() {
-  return (
-    <div className="preview-notice" role="note">
-      <span className="notice-dot" />
-      Pratinjau lokal · data tersimpan di browser ini
-    </div>
-  );
+export default function AppRouter({
+  initialSession = null,
+}: {
+  initialSession?: LocalSession | null;
+}) {
+  return <AppRouterContent initialSession={initialSession} />;
 }
 
-export default function AppRouter() {
-  return <AppRouterContent />;
-}
-
-function AppRouterContent() {
+function AppRouterContent({
+  initialSession,
+}: {
+  initialSession: LocalSession | null;
+}) {
   const path = usePathname() || "/";
   const router = useRouter();
-  const [session, setSession] = useState<LocalSession | null>(null);
-  const [sessionReady, setSessionReady] = useState(false);
-
+  const { user, isLoading, signOut, refresh } = useAuth();
+  const synced = useRef<string | null>(null);
   useEffect(() => {
-    setSession(getSession());
-    setSessionReady(true);
-  }, []);
+    // One-time import of the Google name/photo for new accounts.
+    if (!user || (user.prefs as Record<string, unknown> | undefined)?.profileSynced || synced.current === user.$id) return;
+    synced.current = user.$id;
+    syncProfile()
+      .then(() => refresh())
+      .catch(() => {
+        synced.current = null;
+      });
+  }, [user, refresh]);
+  const session = useMemo<LocalSession | null>(() => {
+    // Until the client auth query settles, trust the server-verified session.
+    if (isLoading) return initialSession;
+    return user ? toLocalSession(user) : null;
+  }, [user, isLoading, initialSession]);
+  const sessionReady = !isLoading || initialSession !== null;
+  const handleSignOut = () =>
+    signOut.signOut({
+      onSuccess: () => {
+        router.replace("/login");
+        router.refresh();
+      },
+    });
 
+  const page = renderPage();
+  return (
+    <div className="page-fade" key={path === "/index" ? "/" : path}>
+      {page}
+    </div>
+  );
+
+  function renderPage() {
   if (path === "/" || path === "/index") return <Landing session={session} />;
   if (path === "/register" || path === "/login")
     return (
       <AuthScreen
         mode={path === "/register" ? "register" : "login"}
-        onSuccess={(next) => {
-          setSession(next);
+        onSuccess={() => {
           router.push("/planner");
+          router.refresh();
         }}
       />
     );
@@ -388,11 +526,16 @@ function AppRouterContent() {
       <Planner
         session={session}
         sessionReady={sessionReady}
-        onSignOut={() => {
-          signOut();
-          setSession(null);
-          router.push("/login");
-        }}
+        onSignOut={handleSignOut}
+        onProfileChanged={refresh}
+      />
+    );
+  if (path === "/analytics")
+    return (
+      <AnalyticsPage
+        session={session}
+        sessionReady={sessionReady}
+        onSignOut={handleSignOut}
       />
     );
   if (path === "/settings")
@@ -400,23 +543,21 @@ function AppRouterContent() {
       <Settings
         session={session}
         sessionReady={sessionReady}
-        onSignOut={() => {
-          signOut();
-          setSession(null);
-          router.push("/login");
-        }}
+        onSignOut={handleSignOut}
+        onProfileChanged={refresh}
       />
     );
   return (
     <main className="not-found">
       <Brand />
       <h1>Halaman ini belum tersedia</h1>
-      <p>Periksa alamatnya, atau kembali ke minggu Anda.</p>
+      <p>Periksa alamatnya, atau kembali ke minggumu.</p>
       <Link className="button button-primary" href={session ? "/planner" : "/"}>
         Kembali
       </Link>
     </main>
   );
+  }
 }
 
 function useScrollReveal<T extends HTMLElement>() {
@@ -532,7 +673,7 @@ function LandingFeatures() {
             <p>
               Belum tahu kapan? Simpan tugas tanpa tanggal di daftar Belum
               dijadwalkan. Saat harinya jelas, pindahkan lewat tanggal di menu
-              tugas, tanpa perlu drag.
+              tugas, tanpa perlu menyeret.
             </p>
           </div>
         </article>
@@ -596,8 +737,7 @@ function LandingFeatures() {
             <h3>Ritme, diatur sendiri</h3>
             <p>
               Pilih tema terang, gelap, atau ikuti perangkat. Mulai minggu dari
-              Senin atau Minggu, dan ganti bahasa kapan saja. Preferensi
-              tersimpan di browser ini.
+              Senin atau Minggu, dan ganti bahasa kapan saja. Pengaturan tersimpan di perangkat ini.
             </p>
           </div>
         </article>
@@ -607,8 +747,8 @@ function LandingFeatures() {
         konfirmasi sebelum menghapus tugas.
       </p>
       <p className="features-note" data-reveal>
-        Data pratinjau tersimpan di browser ini. Sinkronisasi akun menyusul
-        saat backend terhubung.
+        Tugasmu tersimpan di akun Weekflow, jadi tetap ada saat kamu masuk dari
+        perangkat lain.
       </p>
     </section>
   );
@@ -652,7 +792,7 @@ function Landing({ session }: { session: LocalSession | null }) {
               Susun minggu saya <FaArrowRight aria-hidden="true" />
             </Link>
             <span className="hero-caption">
-              Gratis digunakan · Dirancang untuk penggunaan personal
+              Gratis dipakai · Dirancang untuk keperluan pribadi
             </span>
           </div>
           <div className="hero-proof">
@@ -765,7 +905,7 @@ function LandingFooter({ session }: { session: LocalSession | null }) {
                 <li>
                   <Link href="/settings">
                     <FaArrowRight aria-hidden="true" />
-                    Preferensi
+                    Pengaturan
                   </Link>
                 </li>
               </ul>
@@ -814,7 +954,7 @@ function LandingFooter({ session }: { session: LocalSession | null }) {
           </span>
         </div>
         <div className="footer-bottom">
-          <span>© 2026 Weekflow · Pratinjau lokal</span>
+          <span>© 2026 Weekflow</span>
           <div>
             <Link href="#fitur">Fitur</Link>
             <Link href="#top">Kembali ke atas</Link>
@@ -825,38 +965,78 @@ function LandingFooter({ session }: { session: LocalSession | null }) {
   );
 }
 
+function authErrorMessage(error: Error) {
+  const type = (error as { type?: string }).type;
+  const code = (error as { code?: number }).code;
+  if (type === "user_already_exists" || code === 409)
+    return "Email ini sudah terdaftar. Coba masuk.";
+  if (type === "user_invalid_credentials" || code === 401)
+    return "Email atau kata sandi tidak cocok.";
+  if (type === "general_rate_limit_exceeded" || code === 429)
+    return "Terlalu banyak percobaan. Coba lagi sebentar.";
+  if (code === 400) return "Masukkan email yang valid dan kata sandi minimal 8 karakter.";
+  return "Ada kendala. Coba lagi sebentar.";
+}
+
 function AuthScreen({
   mode,
   onSuccess,
 }: {
   mode: "register" | "login";
-  onSuccess: (session: LocalSession) => void;
+  onSuccess: () => void;
 }) {
   const router = useRouter();
+  const { signIn, signUp } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const isRegister = mode === "register";
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("error") === "oauth")
+      setError("Masuk dengan Google belum berhasil. Coba lagi.");
+  }, []);
+  const continueWithGoogle = () => {
+    setError("");
+    setGoogleBusy(true);
+    signIn.oAuth({
+      provider: OAuthProvider.Google,
+      onError: () => {
+        setGoogleBusy(false);
+        setError("Masuk dengan Google belum berhasil. Coba lagi.");
+      },
+    });
+  };
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setError("");
     if (password.length < 8) {
-      setError("Kata sandi perlu berisi setidaknya 8 karakter.");
+      setError("Kata sandi minimal 8 karakter.");
       return;
     }
     setBusy(true);
-    try {
-      onSuccess(isRegister ? signUp(email, password) : signIn(email, password));
-    } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "Ada kendala. Coba lagi sebentar.",
-      );
-    } finally {
+    const cleanEmail = email.trim().toLowerCase();
+    const fail = (reason: Error) => {
       setBusy(false);
-    }
+      setError(authErrorMessage(reason));
+    };
+    if (isRegister)
+      signUp.emailPassword({
+        email: cleanEmail,
+        password,
+        name: cleanEmail.split("@")[0],
+        onSuccess,
+        onError: fail,
+      });
+    else
+      signIn.emailPassword({
+        email: cleanEmail,
+        password,
+        onSuccess,
+        onError: fail,
+      });
   };
   return (
     <main className="auth-shell">
@@ -907,6 +1087,26 @@ function AuthScreen({
                 : "Masuk untuk membuka planner mingguanmu."}
             </p>
           </div>
+          <button
+            className="button google-button"
+            type="button"
+            onClick={continueWithGoogle}
+            disabled={googleBusy || busy}
+          >
+            <FaGoogle aria-hidden="true" />
+            <span>
+              {googleBusy
+                ? "Mengalihkan ke Google…"
+                : isRegister
+                  ? "Daftar dengan Google"
+                  : "Masuk dengan Google"}
+            </span>
+          </button>
+          <div className="auth-divider auth-divider-top" aria-hidden="true">
+            <span />
+            ATAU DENGAN EMAIL
+            <span />
+          </div>
           <form className="auth-form" onSubmit={submit} noValidate>
             <label htmlFor="email">Alamat email</label>
             <input
@@ -920,17 +1120,28 @@ function AuthScreen({
               required
             />
             <label htmlFor="password">Kata sandi</label>
-            <input
-              autoComplete={isRegister ? "new-password" : "current-password"}
-              id="password"
-              name="password"
-              type="password"
-              placeholder="Minimal 8 karakter"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              minLength={8}
-            />
+            <div className="password-field">
+              <input
+                autoComplete={isRegister ? "new-password" : "current-password"}
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Minimal 8 karakter"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+                minLength={8}
+              />
+              <button
+                className="password-toggle"
+                type="button"
+                aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+                aria-pressed={showPassword}
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <FaEyeSlash aria-hidden="true" /> : <FaEye aria-hidden="true" />}
+              </button>
+            </div>
             {error && (
               <p className="form-error" role="alert">
                 {error}
@@ -955,20 +1166,6 @@ function AuthScreen({
               </Link>
             </p>
           </form>
-          <div className="auth-divider">
-            <span />
-            UNTUK SEKARANG
-            <span />
-          </div>
-          <div className="auth-local-note">
-            <span className="local-icon" aria-hidden="true">
-              <FaRegCircle />
-            </span>
-            <p>
-              Mode pratinjau menyimpan sesi dan tugas di browser ini. Hubungkan
-              backend untuk akun dan sinkronisasi sungguhan.
-            </p>
-          </div>
           <div className="auth-bottom">
             <span>Weekflow · Planner yang memberi ruang</span>
           </div>
@@ -978,23 +1175,44 @@ function AuthScreen({
   );
 }
 
+type ViewTransitionDoc = Document & {
+  startViewTransition?: (update: () => void) => { finished: Promise<unknown> };
+};
+/** Morph between layouts with the View Transitions API; false when unsupported. */
+const morph = (update: () => void, before?: () => void, after?: () => void) => {
+  const doc = document as ViewTransitionDoc;
+  if (
+    !doc.startViewTransition ||
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  )
+    return false;
+  before?.();
+  const transition = doc.startViewTransition(() => flushSync(update));
+  transition.finished.finally(() => after?.());
+  return true;
+};
+
 function Planner({
   session,
   sessionReady,
   onSignOut,
+  onProfileChanged,
 }: {
   session: LocalSession | null;
   sessionReady: boolean;
   onSignOut: () => void;
+  onProfileChanged: () => Promise<unknown> | void;
 }) {
   const router = useRouter();
   const [anchor, setAnchor] = useState(() => mondayOf(new Date()));
   const [weekStarts, setWeekStarts] = useState(1);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [unscheduled, setUnscheduled] = useState<Task[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [activeDay, setActiveDay] = useState(todayKey);
   const [showUnscheduled, setShowUnscheduled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const [editor, setEditor] = useState<{
     task?: Task;
     date: string | null;
@@ -1002,6 +1220,112 @@ function Planner({
   const [status, setStatus] = useState("");
   const [failure, setFailure] = useState(false);
   const [notice, setNotice] = useState("");
+  // Focus mode lives in the URL (?day=YYYY-MM-DD) but never leaves the page.
+  const [focus, setFocus] = useState<{ day: string; from: DOMRect | null } | null>(null);
+  const [returning, setReturning] = useState<{ day: string; from: DOMRect; morph: boolean } | null>(null);
+  const focusEl = useRef<HTMLElement | null>(null);
+  const focusDay = useRef<string | null>(null);
+  const pushedFocus = useRef(false);
+  useEffect(() => {
+    focusDay.current = focus?.day ?? null;
+  }, [focus]);
+  const syncFocus = useCallback(() => {
+    const raw = new URLSearchParams(window.location.search).get("day");
+    const day = raw && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
+    const current = focusDay.current;
+    if (day === current) return;
+    if (!day && current && focusEl.current) {
+      const from = focusEl.current.getBoundingClientRect();
+      focusDay.current = null;
+      const done = morph(() => {
+        setReturning({ day: current, from, morph: true });
+        setFocus(null);
+      });
+      if (done) return;
+      setReturning({ day: current, from, morph: false });
+    }
+    if (day) {
+      const date = fromKey(day);
+      setAnchor((now) => {
+        const start = mondayOf(now, weekStartsRef.current);
+        return day >= dayKey(start) && day <= dayKey(shift(start, 6)) ? now : date;
+      });
+      setActiveDay(day);
+    }
+    focusDay.current = day;
+    setFocus(day ? { day, from: null } : null);
+  }, []);
+  const weekStartsRef = useRef(1);
+  useEffect(() => {
+    weekStartsRef.current = weekStarts;
+  }, [weekStarts]);
+  useEffect(() => {
+    syncFocus();
+    window.addEventListener("popstate", syncFocus);
+    return () => window.removeEventListener("popstate", syncFocus);
+  }, [syncFocus]);
+  const openFocus = (day: string, from: DOMRect) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("day", day);
+    window.history.pushState(null, "", url);
+    pushedFocus.current = true;
+    focusDay.current = day;
+    setActiveDay(day);
+    const column = document.getElementById(`col-${day}`);
+    const done = morph(
+      () => setFocus({ day, from: null }),
+      () => {
+        if (column) column.style.viewTransitionName = "focus-card";
+      },
+    );
+    if (!done) setFocus({ day, from });
+  };
+  const closeFocus = () => {
+    if (pushedFocus.current) {
+      pushedFocus.current = false;
+      window.history.back();
+      return;
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.delete("day");
+    window.history.replaceState(null, "", url);
+    syncFocus();
+  };
+  const stepFocus = (direction: -1 | 1) => {
+    if (!focus) return;
+    const day = dayKey(shift(fromKey(focus.day), direction));
+    const url = new URL(window.location.href);
+    url.searchParams.set("day", day);
+    window.history.replaceState(null, "", url);
+    syncFocus();
+  };
+  useLayoutEffect(() => {
+    if (!returning || !loaded || failure || focus) return;
+    const column = document.getElementById(`col-${returning.day}`);
+    setReturning(null);
+    if (column && returning.morph) {
+      column.style.viewTransitionName = "focus-card";
+      window.setTimeout(() => {
+        column.style.viewTransitionName = "";
+      }, 1200);
+      return;
+    }
+    if (!column || window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+      return;
+    const to = column.getBoundingClientRect();
+    if (!to.width || !to.height) return;
+    column.animate(
+      [
+        {
+          zIndex: 3,
+          transformOrigin: "top left",
+          transform: `translate(${returning.from.left - to.left}px, ${returning.from.top - to.top}px) scale(${returning.from.width / to.width}, ${returning.from.height / to.height})`,
+        },
+        { zIndex: 3, transformOrigin: "top left", transform: "none" },
+      ],
+      { duration: 460, easing: "cubic-bezier(.2,.8,.2,1)" },
+    );
+  }, [returning, loaded, failure, focus]);
 
   useEffect(() => {
     if (sessionReady && !session) router.replace("/login");
@@ -1023,16 +1347,21 @@ function Planner({
     setFailure(false);
     const start = mondayOf(anchor, weekStarts);
     const end = shift(start, 6);
-    window.setTimeout(() => {
-      if (canceled) return;
-      try {
-        setTasks(listTasks(session.email, dayKey(start), dayKey(end)));
+    Promise.all([
+      listTasks(dayKey(start), dayKey(end)),
+      listUnscheduledTasks(),
+    ])
+      .then(([week, loose]) => {
+        if (canceled) return;
+        setTasks(week);
+        setUnscheduled(loose);
         setLoaded(true);
-      } catch {
+      })
+      .catch(() => {
+        if (canceled) return;
         setFailure(true);
         setLoaded(true);
-      }
-    }, 180);
+      });
     return () => {
       canceled = true;
     };
@@ -1046,58 +1375,143 @@ function Planner({
     () => Array.from({ length: 7 }, (_, index) => shift(weekStart, index)),
     [weekStart],
   );
-  const allTasks = useMemo(
-    () => (session ? listTasks(session.email) : []),
-    [session, tasks],
-  );
-  const unscheduled = allTasks
-    .filter((task) => !task.scheduledDate)
-    .sort((a, b) => a.position - b.position);
   const orderedFor = (date: string) =>
     tasks
       .filter((task) => task.scheduledDate === date)
       .sort((a, b) => a.position - b.position);
-  const weekLabel = `${dateLabel(dates[0], { day: "numeric", month: "long" })} sampai ${dateLabel(dates[6], { day: "numeric", month: "long", year: "numeric" })}`;
+  const weekLabel = `${dateLabel(dates[0], { day: "numeric", month: "long" })} ${isEnglish() ? "to" : "sampai"} ${dateLabel(dates[6], { day: "numeric", month: "long", year: "numeric" })}`;
   const saved = (message: string) => {
     setStatus(message);
     window.setTimeout(() => setStatus(""), 2600);
   };
-  const refresh = () => {
-    if (session) {
-      const start = mondayOf(anchor, weekStarts);
-      setTasks(
-        listTasks(session.email, dayKey(start), dayKey(shift(start, 6))),
-      );
-    }
+  const pending = useRef(0);
+  const latest = useRef({ tasks, unscheduled });
+  useEffect(() => {
+    latest.current = { tasks, unscheduled };
+  });
+  const refresh = async () => {
+    const start = mondayOf(anchor, weekStarts);
+    const [week, loose] = await Promise.all([
+      listTasks(dayKey(start), dayKey(shift(start, 6))),
+      listUnscheduledTasks(),
+    ]);
+    // Skip while optimistic edits are in flight so they are not reverted.
+    if (pending.current > 0) return;
+    setTasks(week);
+    setUnscheduled(loose);
   };
-  const runMutation = (work: () => void, message: string) => {
+  type Optimistic = (list: Task[], kind: "week" | "loose") => Task[];
+  const runMutation = async (
+    work: () => Promise<unknown>,
+    message: string,
+    optimistic?: Optimistic,
+  ) => {
     if (!session) return false;
+    const snapshot = latest.current;
+    pending.current += 1;
+    if (optimistic) {
+      setTasks((list) => optimistic(list, "week"));
+      setUnscheduled((list) => optimistic(list, "loose"));
+    }
     try {
-      work();
-      refresh();
-      saved(message);
-      return true;
+      await work();
     } catch {
+      pending.current -= 1;
       setNotice("Perubahan belum tersimpan. Coba lagi.");
+      if (optimistic) {
+        try {
+          await refresh();
+        } catch {
+          setTasks(snapshot.tasks);
+          setUnscheduled(snapshot.unscheduled);
+        }
+      }
       return false;
     }
+    pending.current -= 1;
+    if (optimistic) {
+      saved(message);
+      refresh().catch(() =>
+        setNotice("Perubahan tersimpan, tetapi daftar belum bisa dimuat ulang."),
+      );
+      return true;
+    }
+    try {
+      await refresh();
+    } catch {
+      setNotice("Perubahan tersimpan, tetapi daftar belum bisa dimuat ulang.");
+      return true;
+    }
+    saved(message);
+    return true;
   };
+  const patchLocal =
+    (id: string, changes: Partial<Task>): Optimistic =>
+    (list) =>
+      list.map((item) => (item.id === id ? { ...item, ...changes } : item));
+  const setPriority = (task: Task, priority: Priority) =>
+    task.priority === priority
+      ? undefined
+      : runMutation(
+          () => setTaskPriority(task.id, priority),
+          isEnglish() ? "Priority updated." : "Prioritas diperbarui.",
+          patchLocal(task.id, { priority }),
+        );
+  const toggleTask = (task: Task) =>
+    runMutation(
+      () => setTaskCompletion(task.id, !task.completed),
+      task.completed ? "Tugas dibuka kembali." : "Satu tugas selesai. Mantap.",
+      patchLocal(task.id, { completed: !task.completed }),
+    );
+  const removeTask = (task: Task) =>
+    runMutation(
+      () => deleteTask(task.id),
+      "Tugas dihapus.",
+      (list) => list.filter((item) => item.id !== task.id),
+    );
   const openCreate = (date: string | null) => {
     if (!date) setShowUnscheduled(true);
     setEditor({ date });
   };
   const move = (task: Task, date: string | null) => {
     if (!date) setShowUnscheduled(true);
+    const weekKeys = dates.map(dayKey);
     return runMutation(
-      () => moveTask(session!.email, task.id, date),
+      () => moveTask(task.id, date),
       date ? "Tugas dipindahkan." : "Tugas disimpan tanpa tanggal.",
+      (list, kind) => {
+        const rest = list.filter((item) => item.id !== task.id);
+        const belongs = date ? weekKeys.includes(date) : false;
+        if ((kind === "week") !== belongs) return rest;
+        const position =
+          rest
+            .filter((item) => item.scheduledDate === date)
+            .reduce((max, item) => Math.max(max, item.position), 0) + 1;
+        return [...rest, { ...task, scheduledDate: date, position }];
+      },
     );
   };
-  const shiftTask = (task: Task, direction: -1 | 1) =>
-    runMutation(
-      () => reorderTask(session!.email, task.id, direction),
+  const shiftTask = (task: Task, direction: -1 | 1) => {
+    const list = (
+      task.scheduledDate
+        ? tasks.filter((item) => item.scheduledDate === task.scheduledDate)
+        : [...unscheduled]
+    ).sort((a, b) => a.position - b.position);
+    const neighbour = list[list.findIndex((item) => item.id === task.id) + direction];
+    if (!neighbour) return;
+    return runMutation(
+      () => reorderTask(task, neighbour),
       "Urutan tugas diperbarui.",
+      (items) =>
+        items.map((item) =>
+          item.id === task.id
+            ? { ...item, position: neighbour.position }
+            : item.id === neighbour.id
+              ? { ...item, position: task.position }
+              : item,
+        ),
     );
+  };
   if (!sessionReady || !session)
     return (
       <div className="loading-page">
@@ -1107,12 +1521,12 @@ function Planner({
       </div>
     );
   return (
+    <WeekStartContext.Provider value={weekStarts}>
     <div className="app-shell">
       <header className="app-header">
         <Brand />
         <div className="header-right">
           <LanguageControl />
-          <PreviewNotice />
           <div className="account-wrap">
             <button
               className="account-button"
@@ -1120,10 +1534,8 @@ function Planner({
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen(!menuOpen)}
             >
-              <span className="account-avatar">
-                {session.email.slice(0, 1).toUpperCase()}
-              </span>
-              <span className="account-email">{session.email}</span>
+              <Avatar session={session} className="account-avatar" />
+              <span className="account-email">{session.name}</span>
               <FaChevronDown aria-hidden="true" />
             </button>
             {menuOpen && (
@@ -1133,10 +1545,19 @@ function Planner({
                   <br />
                   <strong>{session.email}</strong>
                 </div>
-                <Link href="/settings" onClick={() => setMenuOpen(false)}>
-                  Preferensi <FaExternalLinkAlt aria-hidden="true" />
+                <Link href="/analytics" onClick={() => setMenuOpen(false)}>
+                  Analitik <FaExternalLinkAlt aria-hidden="true" />
                 </Link>
-                <button type="button" onClick={onSignOut}>
+                <Link href="/settings" onClick={() => setMenuOpen(false)}>
+                  Pengaturan <FaExternalLinkAlt aria-hidden="true" />
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setConfirmLogout(true);
+                  }}
+                >
                   Keluar <FaExternalLinkAlt aria-hidden="true" />
                 </button>
               </div>
@@ -1145,6 +1566,38 @@ function Planner({
         </div>
       </header>
       <main className="planner-main">
+        {focus && fromKey(focus.day) && (
+          <FocusView
+            date={fromKey(focus.day)}
+            from={focus.from}
+            elRef={focusEl}
+            loaded={loaded && !failure}
+            tasks={orderedFor(focus.day)}
+            onClose={closeFocus}
+            onStep={stepFocus}
+            onAdd={() => openCreate(focus.day)}
+            onPriority={setPriority}
+            renderCard={(task, index, list) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                onToggle={() => toggleTask(task)}
+                onEdit={() => setEditor({ task, date: focus.day })}
+                onDelete={() => {
+                  if (window.confirm(isEnglish() ? `Delete “${task.title}”?` : `Hapus “${task.title}”?`))
+                    removeTask(task);
+                }}
+                onMove={move}
+                onShift={(direction) => shiftTask(task, direction)}
+                canUp={index > 0}
+                canDown={index < list.length - 1}
+                onPriority={(priority) => setPriority(task, priority)}
+                detailed
+              />
+            )}
+          />
+        )}
+        {!focus && (<>
         <div className="planner-topline">
           <div>
             <div className="eyebrow planner-eyebrow">
@@ -1183,16 +1636,26 @@ function Planner({
               >
                 <FaArrowLeft aria-hidden="true" />
               </button>
-              <button
-                className="button button-soft"
-                onClick={() => {
-                  const now = new Date();
-                  setAnchor(now);
-                  setActiveDay(todayKey);
-                }}
-              >
-                Minggu ini
-              </button>
+              <div className="week-picker-group">
+                <button
+                  className="button button-soft"
+                  onClick={() => {
+                    const now = new Date();
+                    setAnchor(now);
+                    setActiveDay(todayKey);
+                  }}
+                >
+                  Minggu ini
+                </button>
+                <WeekPicker
+                  selectedStart={weekStart}
+                  weekStarts={weekStarts}
+                  onPick={(date) => {
+                    setAnchor(date);
+                    setActiveDay(dayKey(date));
+                  }}
+                />
+              </div>
               <button
                 className="icon-button"
                 aria-label="Minggu berikutnya"
@@ -1243,7 +1706,7 @@ function Planner({
               <span className="state-symbol"><FaExclamationCircle /></span>
               <div>
                 <strong>Planner belum bisa dimuat.</strong>
-                <p>Periksa lagi sebentar lagi. Data lokalmu tetap ada.</p>
+                <p>Coba lagi sebentar lagi. Tugasmu tetap aman.</p>
               </div>
               <button
                 className="button button-soft"
@@ -1274,6 +1737,7 @@ function Planner({
                   <section
                     className={`day-column${key === todayKey ? " is-today" : ""}${key === activeDay ? " is-active" : ""}`}
                     key={key}
+                    id={`col-${key}`}
                     aria-labelledby={`day-${key}`}
                   >
                     <header className="day-heading">
@@ -1285,9 +1749,27 @@ function Planner({
                           {dateLabel(date, { day: "numeric", month: "short" })}
                         </span>
                       </div>
-                      {key === todayKey && (
-                        <span className="today-tag">Hari ini</span>
-                      )}
+                      <div className="day-heading-end">
+                        {key === todayKey && (
+                          <span className="today-tag">Hari ini</span>
+                        )}
+                        <button
+                          className="day-focus"
+                          type="button"
+                          aria-label={`${isEnglish() ? "Focus on" : "Fokus pada"} ${dateLabel(date, { weekday: "long", day: "numeric", month: "long" })}`}
+                          title={isEnglish() ? "Focus on this day" : "Fokus ke hari ini"}
+                          onClick={(event) =>
+                            openFocus(
+                              key,
+                              event.currentTarget
+                                .closest(".day-column")!
+                                .getBoundingClientRect(),
+                            )
+                          }
+                        >
+                          <FaEye aria-hidden="true" />
+                        </button>
+                      </div>
                     </header>
                     <div className="task-list">
                       {dayTasks.length ? (
@@ -1295,26 +1777,11 @@ function Planner({
                           <TaskCard
                             key={task.id}
                             task={task}
-                            onToggle={() =>
-                              runMutation(
-                                () =>
-                                  setTaskCompletion(
-                                    session.email,
-                                    task.id,
-                                    !task.completed,
-                                  ),
-                                task.completed
-                                  ? "Tugas dibuka kembali."
-                                  : "Satu hal selesai. Bagus.",
-                              )
-                            }
+                            onToggle={() => toggleTask(task)}
                             onEdit={() => setEditor({ task, date: key })}
                             onDelete={() => {
-                              if (window.confirm(localStorage.getItem("weekflow-language") === "en" ? `Delete “${task.title}”?` : `Hapus “${task.title}”?`))
-                                runMutation(
-                                  () => deleteTask(session.email, task.id),
-                                  "Tugas dihapus.",
-                                );
+                              if (window.confirm(isEnglish() ? `Delete “${task.title}”?` : `Hapus “${task.title}”?`))
+                                removeTask(task);
                             }}
                             onMove={move}
                             onShift={(direction) => shiftTask(task, direction)}
@@ -1334,7 +1801,7 @@ function Planner({
                       type="button"
                       onClick={() => openCreate(key)}
                     >
-                      <FaPlus aria-hidden="true" /> Tambah hal
+                      <FaPlus aria-hidden="true" /> Tambah tugas
                     </button>
                   </section>
                 );
@@ -1355,7 +1822,7 @@ function Planner({
             </div>
             <span className="task-count">
               {unscheduled.length}{" "}
-              {localStorage.getItem("weekflow-language") === "en"
+              {isEnglish()
                 ? unscheduled.length === 1 ? "task" : "tasks"
                 : "tugas"}
             </span>
@@ -1372,26 +1839,11 @@ function Planner({
                 <TaskCard
                   key={task.id}
                   task={task}
-                  onToggle={() =>
-                    runMutation(
-                      () =>
-                        setTaskCompletion(
-                          session.email,
-                          task.id,
-                          !task.completed,
-                        ),
-                      task.completed
-                        ? "Tugas dibuka kembali."
-                        : "Satu hal selesai. Bagus.",
-                    )
-                  }
+                  onToggle={() => toggleTask(task)}
                   onEdit={() => setEditor({ task, date: null })}
                   onDelete={() => {
-                    if (window.confirm(localStorage.getItem("weekflow-language") === "en" ? `Delete “${task.title}”?` : `Hapus “${task.title}”?`))
-                      runMutation(
-                        () => deleteTask(session.email, task.id),
-                        "Tugas dihapus.",
-                      );
+                    if (window.confirm(isEnglish() ? `Delete “${task.title}”?` : `Hapus “${task.title}”?`))
+                      removeTask(task);
                   }}
                   onMove={move}
                   onShift={(direction) => shiftTask(task, direction)}
@@ -1407,18 +1859,23 @@ function Planner({
               </span>
               <div>
                 <strong>
-                  {allTasks.length
-                    ? "Tidak ada yang tertinggal tanpa rencana."
+                  {tasks.length
+                    ? "Semua tugas sudah punya hari."
                     : "Pikiranmu boleh mendarat di sini."}
                 </strong>
-                <p>Hal yang belum punya hari juga tetap punya tempat.</p>
+                <p>Tugas yang belum punya hari tetap punya tempat.</p>
               </div>
               <button className="text-button" onClick={() => openCreate(null)}>
-                Tulis satu hal <FaArrowRight aria-hidden="true" />
+                Tulis satu tugas <FaArrowRight aria-hidden="true" />
               </button>
             </div>
           )}
         </section>
+        <AnalyticsPeek
+          tasks={tasks}
+          keys={dates.map(dayKey)}
+          loaded={loaded && !failure}
+        />
         <footer className="planner-footer">
           <span>
             <span className="footer-flower" aria-hidden="true">
@@ -1428,6 +1885,7 @@ function Planner({
           </span>
           <span>Rencana yang baik memberi ruang untuk berubah.</span>
         </footer>
+        </>)}
       </main>
       {status && (
         <div className="toast" role="status">
@@ -1445,26 +1903,268 @@ function Planner({
           </button>
         </div>
       )}
+      {confirmLogout && (
+        <LogoutDialog
+          onCancel={() => setConfirmLogout(false)}
+          onConfirm={onSignOut}
+        />
+      )}
       {editor && (
         <TaskEditor
           task={editor.task}
           initialDate={editor.date}
           onClose={() => setEditor(null)}
-          onSave={(title, date) => {
+          onSave={async (details) => {
             if (!session) return false;
-            const ok = runMutation(
+            const ok = await runMutation(
               () =>
                 editor.task
-                  ? updateTask(session.email, editor.task.id, title, date)
-                  : createTask(session.email, title, date),
+                  ? updateTask(editor.task.id, details)
+                  : createTask(details),
               editor.task ? "Perubahan disimpan." : "Tugas ditambahkan.",
             );
-            if (ok) setEditor(null);
             return ok;
           }}
         />
       )}
     </div>
+    </WeekStartContext.Provider>
+  );
+}
+
+function FocusView({
+  date,
+  from,
+  elRef,
+  loaded,
+  tasks,
+  renderCard,
+  onPriority,
+  onClose,
+  onStep,
+  onAdd,
+}: {
+  date: Date;
+  from: DOMRect | null;
+  elRef: { current: HTMLElement | null };
+  loaded: boolean;
+  tasks: Task[];
+  renderCard: (task: Task, index: number, list: Task[]) => ReactNode;
+  onPriority: (task: Task, priority: Priority) => void;
+  onClose: () => void;
+  onStep: (direction: -1 | 1) => void;
+  onAdd: () => void;
+}) {
+  const [view, setView] = useState<"list" | "board">("list");
+  const [dragOver, setDragOver] = useState<Priority | null>(null);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("weekflow-focus-view") === "board") setView("board");
+    } catch {}
+  }, []);
+  const changeView = (next: "list" | "board") => {
+    setView(next);
+    try {
+      localStorage.setItem("weekflow-focus-view", next);
+    } catch {}
+  };
+  const total = tasks.length;
+  const done = tasks.filter((task) => task.completed).length;
+  const local = useRef<HTMLElement | null>(null);
+  const key = dayKey(date);
+  // Scale the view out of the week column it was opened from.
+  useLayoutEffect(() => {
+    const el = local.current;
+    elRef.current = el;
+    if (!el || !from || window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+      return;
+    const to = el.getBoundingClientRect();
+    if (!to.width || !to.height) return;
+    el.animate(
+      [
+        {
+          transformOrigin: "top left",
+          transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width}, ${from.height / to.height})`,
+        },
+        { transformOrigin: "top left", transform: "none" },
+      ],
+      { duration: 520, easing: "cubic-bezier(.2,.8,.2,1)" },
+    );
+    return () => {
+      elRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || document.querySelector(".task-dialog, .task-menu")) return;
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  // Slide direction for the day swap: +1 forward, -1 back.
+  const previous = useRef(key);
+  const direction = key > previous.current ? 1 : key < previous.current ? -1 : 0;
+  useEffect(() => {
+    previous.current = key;
+  }, [key]);
+  const english = isEnglish();
+  const percent = total ? Math.round((done / total) * 100) : 0;
+  return (
+    <section
+      ref={(node) => {
+        local.current = node;
+        elRef.current = node;
+      }}
+      className={`focus-view${key === todayKey ? " is-today" : ""}`}
+      aria-labelledby="focus-title"
+    >
+      <div className={`focus-body${view === "board" ? " is-board" : ""}`}>
+        <div className="focus-bar">
+          <button className="button button-soft" type="button" onClick={onClose}>
+            <FaArrowLeft aria-hidden="true" /> {english ? "Back to week" : "Kembali ke minggu"}
+          </button>
+          <div className="view-toggle" role="radiogroup" aria-label={english ? "Display" : "Tampilan"}>
+            {(["list", "board"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={view === value}
+                className={view === value ? "is-selected" : ""}
+                onClick={() => changeView(value)}
+              >
+                {value === "list" ? <FaListUl aria-hidden="true" /> : <FaColumns aria-hidden="true" />}
+                {value === "list" ? (english ? "List" : "Daftar") : "Kanban"}
+              </button>
+            ))}
+          </div>
+          <div className="focus-steps">
+            <button
+              className="icon-button"
+              type="button"
+              aria-label={english ? "Previous day" : "Hari sebelumnya"}
+              onClick={() => onStep(-1)}
+            >
+              <FaChevronLeft aria-hidden="true" />
+            </button>
+            <button
+              className="icon-button"
+              type="button"
+              aria-label={english ? "Next day" : "Hari berikutnya"}
+              onClick={() => onStep(1)}
+            >
+              <FaChevronRight aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+        <div
+          key={key}
+          className="focus-swap"
+          style={{ "--dir": direction } as React.CSSProperties}
+        >
+        <div className="focus-head">
+          <div className="focus-title-row">
+            <div>
+          <span className="week-overline">
+            {key === todayKey
+              ? english ? "FOCUS · TODAY" : "FOKUS · HARI INI"
+              : english ? "FOCUS" : "FOKUS"}
+          </span>
+          <h1 id="focus-title">
+            {dateLabel(date, { weekday: "long" })}
+            <em>{dateLabel(date, { day: "numeric", month: "long", year: "numeric" })}</em>
+          </h1>
+            </div>
+            <button className="button button-primary focus-add" type="button" onClick={onAdd}>
+              <FaPlus aria-hidden="true" /> {english ? "Add task" : "Tambah tugas"}
+            </button>
+          </div>
+          <div className="focus-progress">
+            <div className="focus-meter" aria-hidden="true">
+              <i style={{ width: `${percent}%` }} />
+            </div>
+            <span>
+              {english
+                ? `${done} of ${total} done`
+                : `${done} dari ${total} selesai`}
+            </span>
+          </div>
+        </div>
+        {!loaded ? (
+          <div className="focus-list">
+            <div className="skeleton skeleton-day" />
+          </div>
+        ) : view === "board" ? (
+          <div className="kanban">
+            {(["high", "medium", "low"] as Priority[]).map((column) => {
+              const items = tasks.filter((task) => task.priority === column);
+              return (
+                <section
+                  key={column}
+                  className={`kanban-column is-${column}${dragOver === column ? " is-over" : ""}`}
+                  aria-label={priorityLabel(column)}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    setDragOver(column);
+                  }}
+                  onDragLeave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node))
+                      setDragOver(null);
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setDragOver(null);
+                    const id = event.dataTransfer.getData("text/plain");
+                    const task = tasks.find((item) => item.id === id);
+                    if (task) onPriority(task, column);
+                  }}
+                >
+                  <header className="kanban-head">
+                    <span className={`priority-tag is-${column}`}>
+                      <i aria-hidden="true" />
+                      {priorityLabel(column)}
+                    </span>
+                    <span className="kanban-count">{items.length}</span>
+                  </header>
+                  <div className="kanban-cards">
+                    {items.map((task) => (
+                      <div
+                        key={task.id}
+                        className="kanban-item"
+                        draggable
+                        onDragStart={(event) => {
+                          event.dataTransfer.setData("text/plain", task.id);
+                          event.dataTransfer.effectAllowed = "move";
+                        }}
+                      >
+                        {renderCard(task, tasks.indexOf(task), tasks)}
+                      </div>
+                    ))}
+                    {!items.length && (
+                      <p className="kanban-empty">
+                        {english ? "Drop a task here" : "Taruh tugas di sini"}
+                      </p>
+                    )}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        ) : total ? (
+          <div className="focus-list">
+            {tasks.map((task, index) => renderCard(task, index, tasks))}
+          </div>
+        ) : (
+          <div className="day-empty focus-empty">
+            <span aria-hidden="true"><FaSun /></span>
+            <p>{english ? "Room for something new." : "Ruang untuk hal baru."}</p>
+          </div>
+        )}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1477,8 +2177,12 @@ function TaskCard({
   onShift,
   canUp,
   canDown,
+  detailed = false,
+  onPriority,
 }: {
   task: Task;
+  detailed?: boolean;
+  onPriority?: (priority: Priority) => void;
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -1488,6 +2192,7 @@ function TaskCard({
   canDown: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [picking, setPicking] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -1504,7 +2209,7 @@ function TaskCard({
       : Math.max(gap, rect.top - bounds.height - 4);
     const left = Math.max(gap, Math.min(rect.right - bounds.width, window.innerWidth - bounds.width - gap));
     setMenuPosition({ top, left });
-  }, [open]);
+  }, [open, picking]);
   useEffect(() => {
     if (!open) return;
     const closeOnViewportChange = () => setOpen(false);
@@ -1516,14 +2221,16 @@ function TaskCard({
     };
   }, [open]);
   return (
-    <article className={`task-card${task.completed ? " task-completed" : ""}`}>
+    <article
+      className={`task-card${task.completed ? " task-completed" : ""}${detailed ? " has-detail" : ""}`}
+    >
       <button
         className="task-check"
         type="button"
         aria-label={
           task.completed
-            ? `${typeof window !== "undefined" && localStorage.getItem("weekflow-language") === "en" ? "Reopen" : "Buka kembali"} ${task.title}`
-            : `${typeof window !== "undefined" && localStorage.getItem("weekflow-language") === "en" ? "Mark" : "Tandai"} ${task.title} ${typeof window !== "undefined" && localStorage.getItem("weekflow-language") === "en" ? "complete" : "selesai"}`
+            ? `${isEnglish() ? "Reopen" : "Buka kembali"} ${task.title}`
+            : `${isEnglish() ? "Mark" : "Tandai"} ${task.title} ${isEnglish() ? "complete" : "selesai"}`
         }
         aria-pressed={task.completed}
         onClick={onToggle}
@@ -1533,11 +2240,19 @@ function TaskCard({
       <button className="task-title" type="button" onClick={onEdit}>
         {task.title}
       </button>
+      <span
+        className={`priority-tag is-${task.priority}`}
+        title={priorityLabel(task.priority)}
+        aria-label={`${isEnglish() ? "Priority" : "Prioritas"}: ${priorityLabel(task.priority)}`}
+      >
+        <i aria-hidden="true" />
+        {detailed && priorityLabel(task.priority)}
+      </span>
       <div className="task-menu-wrap">
         <button
           ref={triggerRef}
           className="task-menu-trigger"
-          aria-label={`${typeof window !== "undefined" && localStorage.getItem("weekflow-language") === "en" ? "Actions for" : "Aksi untuk"} ${task.title}`}
+          aria-label={`${isEnglish() ? "Options for" : "Opsi untuk"} ${task.title}`}
           aria-expanded={open}
           onClick={(event) => {
             if (!open) {
@@ -1547,6 +2262,7 @@ function TaskCard({
                 left: Math.max(8, Math.min(rect.right - 224, window.innerWidth - 232)),
               });
             }
+            setPicking(false);
             setOpen(!open);
           }}
         >
@@ -1562,19 +2278,41 @@ function TaskCard({
             >
               Ubah tugas
             </button>
-            <label htmlFor={`move-date-${task.id}`}>
+            <button
+              type="button"
+              aria-expanded={picking}
+              onClick={() => setPicking(!picking)}
+            >
               Tanggal baru
-              <input
-                id={`move-date-${task.id}`}
-                aria-label={`${typeof window !== "undefined" && localStorage.getItem("weekflow-language") === "en" ? "Move" : "Pindahkan"} ${task.title} ${typeof window !== "undefined" && localStorage.getItem("weekflow-language") === "en" ? "to date" : "ke tanggal"}`}
-                type="date"
+              <FaChevronDown aria-hidden="true" />
+            </button>
+            {picking && (
+              <CalendarGrid
                 value={task.scheduledDate ?? ""}
-                onChange={(event) => {
-                  onMove(task, event.target.value || null);
+                onPick={(key) => {
+                  onMove(task, key);
                   setOpen(false);
                 }}
               />
-            </label>
+            )}
+            {onPriority && (
+              <div className="menu-priority" role="group" aria-label={isEnglish() ? "Priority" : "Prioritas"}>
+                {(["high", "medium", "low"] as Priority[]).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`priority-tag is-${value}${task.priority === value ? " is-current" : ""}`}
+                    onClick={() => {
+                      onPriority(value);
+                      setOpen(false);
+                    }}
+                  >
+                    <i aria-hidden="true" />
+                    {priorityLabel(value)}
+                  </button>
+                ))}
+              </div>
+            )}
             <button
               onClick={() => {
                 onMove(task, null);
@@ -1618,7 +2356,542 @@ function TaskCard({
           document.body,
         )}
       </div>
+      {detailed && task.description && (
+        <div className="task-detail">
+          <p className="task-description">{task.description}</p>
+        </div>
+      )}
     </article>
+  );
+}
+
+function WeekPicker({
+  selectedStart,
+  weekStarts,
+  onPick,
+}: {
+  selectedStart: Date;
+  weekStarts: number;
+  onPick: (date: Date) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [month, setMonth] = useState(
+    () => new Date(selectedStart.getFullYear(), selectedStart.getMonth(), 1),
+  );
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event: MouseEvent) => {
+      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  const toggle = () => {
+    if (!open)
+      setMonth(
+        new Date(selectedStart.getFullYear(), selectedStart.getMonth(), 1),
+      );
+    setOpen(!open);
+  };
+  const first = mondayOf(month, weekStarts);
+  const weeks: Date[][] = [];
+  for (let row = 0; row < 6; row += 1) {
+    const start = shift(first, row * 7);
+    if (row >= 4 && start.getMonth() !== month.getMonth() && start > month)
+      break;
+    weeks.push(Array.from({ length: 7 }, (_, index) => shift(start, index)));
+  }
+  const selectedKey = dayKey(selectedStart);
+  return (
+    <div className="week-picker" ref={wrapRef}>
+      <button
+        ref={triggerRef}
+        className="icon-button week-picker-trigger"
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label="Pilih minggu lain"
+        onClick={toggle}
+      >
+        <FaChevronDown aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="week-picker-popover" role="dialog" aria-label="Pilih minggu">
+          <div className="wp-head">
+            <button
+              type="button"
+              className="wp-nav"
+              aria-label="Bulan sebelumnya"
+              onClick={() =>
+                setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))
+              }
+            >
+              <FaChevronLeft aria-hidden="true" />
+            </button>
+            <strong aria-live="polite">
+              {dateLabel(month, { month: "long", year: "numeric" })}
+            </strong>
+            <button
+              type="button"
+              className="wp-nav"
+              aria-label="Bulan berikutnya"
+              onClick={() =>
+                setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))
+              }
+            >
+              <FaChevronRight aria-hidden="true" />
+            </button>
+          </div>
+          <div className="wp-weekdays" aria-hidden="true">
+            {weeks[0].map((date) => (
+              <span key={dayKey(date)}>
+                {dateLabel(date, { weekday: "narrow" })}
+              </span>
+            ))}
+          </div>
+          <div className="wp-weeks">
+            {weeks.map((week) => {
+              const selected = dayKey(week[0]) === selectedKey;
+              return (
+                <div
+                  key={dayKey(week[0])}
+                  className={selected ? "wp-week is-selected" : "wp-week"}
+                >
+                  {week.map((date) => {
+                    const key = dayKey(date);
+                    const classes = [
+                      "wp-day",
+                      date.getMonth() !== month.getMonth() ? "is-outside" : "",
+                      key === todayKey ? "is-today" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        className={classes}
+                        aria-current={key === todayKey ? "date" : undefined}
+                        aria-pressed={selected}
+                        aria-label={dateLabel(date, {
+                          weekday: "long",
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                        onClick={() => {
+                          onPick(date);
+                          setOpen(false);
+                          triggerRef.current?.focus();
+                        }}
+                      >
+                        {date.getDate()}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            className="wp-today"
+            onClick={() => {
+              onPick(new Date());
+              setOpen(false);
+              triggerRef.current?.focus();
+            }}
+          >
+            Lompat ke minggu ini
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function useDismissLayer(
+  open: boolean,
+  wrapRef: React.RefObject<HTMLElement | null>,
+  close: () => void,
+) {
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event: MouseEvent) => {
+      if (!wrapRef.current?.contains(event.target as Node)) close();
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        close();
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey, true);
+    };
+  }, [open, wrapRef, close]);
+}
+
+function Select<T extends string | number>({
+  value,
+  options,
+  onChange,
+  label,
+}: {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+  label: string;
+}) {
+  const uid = useId();
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const current = options.find((option) => option.value === value);
+  const dismiss = useCallback(() => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }, []);
+  useDismissLayer(open, wrapRef, dismiss);
+  useEffect(() => {
+    if (open) listRef.current?.focus();
+  }, [open]);
+  const openList = () => {
+    setActive(Math.max(0, options.findIndex((option) => option.value === value)));
+    setOpen(true);
+  };
+  const choose = (index: number) => {
+    onChange(options[index].value);
+    dismiss();
+  };
+  const onListKey = (event: React.KeyboardEvent) => {
+    const last = options.length - 1;
+    if (event.key === "ArrowDown") setActive((i) => Math.min(i + 1, last));
+    else if (event.key === "ArrowUp") setActive((i) => Math.max(i - 1, 0));
+    else if (event.key === "Home") setActive(0);
+    else if (event.key === "End") setActive(last);
+    else if (event.key === "Enter" || event.key === " ") choose(active);
+    else if (event.key === "Tab") setOpen(false);
+    else return;
+    if (event.key !== "Tab") event.preventDefault();
+  };
+  return (
+    <div className="select" ref={wrapRef}>
+      <button
+        ref={triggerRef}
+        className="field-trigger"
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={label}
+        onClick={() => (open ? dismiss() : openList())}
+        onKeyDown={(event) => {
+          if (!open && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+            event.preventDefault();
+            openList();
+          }
+        }}
+      >
+        <span>{current?.label}</span>
+        <FaChevronDown aria-hidden="true" />
+      </button>
+      {open && (
+        <div
+          ref={listRef}
+          className="select-list"
+          role="listbox"
+          tabIndex={-1}
+          aria-label={label}
+          aria-activedescendant={`${uid}-opt-${active}`}
+          onKeyDown={onListKey}
+        >
+          {options.map((option, index) => (
+            <div
+              key={String(option.value)}
+              id={`${uid}-opt-${index}`}
+              role="option"
+              aria-selected={option.value === value}
+              className={`select-option${index === active ? " is-active" : ""}`}
+              onMouseEnter={() => setActive(index)}
+              onClick={() => choose(index)}
+            >
+              <span>{option.label}</span>
+              {option.value === value && <FaCheck aria-hidden="true" />}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CalendarGrid({
+  value,
+  onPick,
+  clearable = false,
+}: {
+  value: string;
+  onPick: (key: string | null) => void;
+  clearable?: boolean;
+}) {
+  const selected = value ? fromKey(value) : null;
+  const [month, setMonth] = useState(() => {
+    const base = selected ?? new Date();
+    return new Date(base.getFullYear(), base.getMonth(), 1);
+  });
+  const weekStarts = useContext(WeekStartContext);
+  const first = mondayOf(month, weekStarts);
+  const days = Array.from({ length: 42 }, (_, index) => shift(first, index));
+  const rows = days[35].getMonth() !== month.getMonth() ? 5 : 6;
+  return (
+    <div className="calendar">
+      <div className="wp-head">
+        <button
+          type="button"
+          className="wp-nav"
+          aria-label="Bulan sebelumnya"
+          onClick={() =>
+            setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))
+          }
+        >
+          <FaChevronLeft aria-hidden="true" />
+        </button>
+        <strong aria-live="polite">
+          {dateLabel(month, { month: "long", year: "numeric" })}
+        </strong>
+        <button
+          type="button"
+          className="wp-nav"
+          aria-label="Bulan berikutnya"
+          onClick={() =>
+            setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))
+          }
+        >
+          <FaChevronRight aria-hidden="true" />
+        </button>
+      </div>
+      <div className="wp-weekdays" aria-hidden="true">
+        {days.slice(0, 7).map((date) => (
+          <span key={dayKey(date)}>{dateLabel(date, { weekday: "narrow" })}</span>
+        ))}
+      </div>
+      <div className="dp-days">
+        {days.slice(0, rows * 7).map((date) => {
+          const key = dayKey(date);
+          const classes = [
+            "wp-day",
+            date.getMonth() !== month.getMonth() ? "is-outside" : "",
+            key === todayKey ? "is-today" : "",
+            key === value ? "is-picked" : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+          return (
+            <button
+              key={key}
+              type="button"
+              className={classes}
+              aria-pressed={key === value}
+              aria-current={key === todayKey ? "date" : undefined}
+              aria-label={dateLabel(date, {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+              onClick={() => onPick(key)}
+            >
+              {date.getDate()}
+            </button>
+          );
+        })}
+      </div>
+      <div className="dp-footer">
+        <button type="button" className="wp-today" onClick={() => onPick(todayKey)}>
+          Hari ini
+        </button>
+        {clearable && (
+          <button
+            type="button"
+            className="wp-today"
+            disabled={!value}
+            onClick={() => onPick(null)}
+          >
+            Simpan tanpa tanggal
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DatePicker({
+  value,
+  onChange,
+  label,
+  id,
+  clearable = true,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  label: string;
+  id?: string;
+  clearable?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dismiss = useCallback(() => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }, []);
+  useDismissLayer(open, wrapRef, dismiss);
+  return (
+    <div className="select date-picker" ref={wrapRef}>
+      <button
+        ref={triggerRef}
+        id={id}
+        className="field-trigger"
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={label}
+        onClick={() => setOpen(!open)}
+      >
+        <span className={value ? "" : "is-placeholder"}>
+          {value
+            ? dateLabel(fromKey(value), {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })
+            : "Tanpa tanggal"}
+        </span>
+        <FaRegCalendarAlt aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="select-list date-popover" role="dialog" aria-label={label}>
+          <CalendarGrid
+            key={value}
+            value={value}
+            clearable={clearable}
+            onPick={(key) => {
+              onChange(key ?? "");
+              dismiss();
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LogoutDialog({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const { closing, close } = useModalClose(onCancel);
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const cancelRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    const trigger = document.activeElement as HTMLElement | null;
+    cancelRef.current?.focus();
+    return () => trigger?.focus();
+  }, []);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) {
+        event.preventDefault();
+        close();
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+      const items = [
+        ...dialog.querySelectorAll<HTMLElement>("button:not([disabled])"),
+      ];
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [close, busy]);
+  return (
+    <ModalFrame
+      closing={closing}
+      onBackdrop={() => {
+        if (!busy) close();
+      }}
+    >
+      <section
+        ref={dialogRef}
+        className="task-dialog logout-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="logout-title"
+        aria-describedby="logout-desc"
+      >
+        <div className="dialog-kicker">KELUAR</div>
+        <h2 id="logout-title">Keluar dari Weekflow?</h2>
+        <p id="logout-desc">
+          Kamu perlu masuk lagi untuk membuka planner. Tugasmu tetap tersimpan
+          di akunmu.
+        </p>
+        <div className="dialog-actions">
+          <button
+            ref={cancelRef}
+            className="button button-soft"
+            type="button"
+            onClick={close}
+            disabled={busy}
+          >
+            Batal
+          </button>
+          <button
+            className="button button-primary"
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              onConfirm();
+            }}
+          >
+            {busy ? "Keluar…" : "Ya, keluar"}
+          </button>
+        </div>
+      </section>
+    </ModalFrame>
   );
 }
 
@@ -1631,12 +2904,16 @@ function TaskEditor({
   task?: Task;
   initialDate: string | null;
   onClose: () => void;
-  onSave: (title: string, date: string | null) => boolean;
+  onSave: (details: TaskDetails) => Promise<boolean>;
 }) {
   const [title, setTitle] = useState(task?.title ?? "");
   const [date, setDate] = useState(task?.scheduledDate ?? initialDate ?? "");
+  const [priority, setPriority] = useState<Priority>(task?.priority ?? "medium");
+  const [description, setDescription] = useState(task?.description ?? "");
+  const [note, setNote] = useState(task?.note ?? "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const { closing, close } = useModalClose(onClose);
   const dialogRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     const trigger = document.activeElement as HTMLElement | null;
@@ -1649,13 +2926,13 @@ function TaskEditor({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        close();
         return;
       }
       if (event.key !== "Tab" || !dialog) return;
       const items = [
         ...dialog.querySelectorAll<HTMLElement>(
-          "button:not([disabled]),input:not([disabled]),select:not([disabled])",
+          "button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled])",
         ),
       ];
       if (!items.length) return;
@@ -1671,8 +2948,8 @@ function TaskEditor({
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-  const submit = (event: FormEvent) => {
+  }, [close]);
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     const clean = title.trim();
     if (!clean) {
@@ -1685,19 +2962,23 @@ function TaskEditor({
     }
     setError("");
     setBusy(true);
-    if (!onSave(clean, date || null)) {
+    if (
+      await onSave({
+        title: clean,
+        scheduledDate: date || null,
+        priority,
+        description: description.trim(),
+        note: note.trim(),
+      })
+    ) {
+      close();
+    } else {
       setBusy(false);
-      setError("Belum tersimpan. Draft tetap ada, silakan coba lagi.");
+      setError("Belum tersimpan. Tulisanmu masih ada, coba lagi.");
     }
   };
   return (
-    <div
-      className="modal-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
+    <ModalFrame closing={closing} onBackdrop={close}>
       <section
         ref={dialogRef}
         className="task-dialog"
@@ -1708,7 +2989,7 @@ function TaskEditor({
         <button
           className="dialog-close"
           type="button"
-          onClick={onClose}
+          onClick={close}
           aria-label="Tutup"
         >
             <FaTimes aria-hidden="true" />
@@ -1733,19 +3014,52 @@ function TaskEditor({
             aria-describedby={error ? "task-title-error" : undefined}
           />
           <label htmlFor="task-date">Tanggal (opsional)</label>
-          <input
+          <DatePicker
             id="task-date"
-            type="date"
+            label="Tanggal (opsional)"
             value={date}
-            onChange={(event) => setDate(event.target.value)}
+            onChange={setDate}
           />
-          <button
-            className="text-button date-clear"
-            type="button"
-            onClick={() => setDate("")}
-          >
-            Simpan tanpa tanggal
-          </button>
+          <span className="field-label" id="task-priority-label">
+            {isEnglish() ? "Priority" : "Prioritas"}
+          </span>
+          <div className="priority-picker" role="radiogroup" aria-labelledby="task-priority-label">
+            {(["low", "medium", "high"] as Priority[]).map((value) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={priority === value}
+                className={`priority-option is-${value}${priority === value ? " is-selected" : ""}`}
+                onClick={() => setPriority(value)}
+              >
+                <i aria-hidden="true" />
+                {priorityLabel(value)}
+              </button>
+            ))}
+          </div>
+          <label htmlFor="task-description">
+            {isEnglish() ? "Description (optional)" : "Deskripsi (opsional)"}
+          </label>
+          <textarea
+            id="task-description"
+            rows={3}
+            maxLength={2000}
+            value={description}
+            placeholder={isEnglish() ? "What does done look like?" : "Seperti apa hasil akhirnya?"}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+          <label htmlFor="task-note">
+            {isEnglish() ? "Note (optional)" : "Catatan (opsional)"}
+          </label>
+          <textarea
+            id="task-note"
+            rows={3}
+            maxLength={5000}
+            value={note}
+            placeholder={isEnglish() ? "Links, thoughts, reminders…" : "Tautan, pikiran, pengingat…"}
+            onChange={(event) => setNote(event.target.value)}
+          />
           {error && (
             <p id="task-title-error" className="form-error" role="alert">
               {error}
@@ -1755,7 +3069,7 @@ function TaskEditor({
             <button
               className="button button-soft"
               type="button"
-              onClick={onClose}
+              onClick={close}
             >
               Batal
             </button>
@@ -1771,11 +3085,11 @@ function TaskEditor({
           </div>
         </form>
       </section>
-    </div>
+    </ModalFrame>
   );
 }
 
-function Settings({
+function AnalyticsPage({
   session,
   sessionReady,
   onSignOut,
@@ -1785,9 +3099,96 @@ function Settings({
   onSignOut: () => void;
 }) {
   const router = useRouter();
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [weekStarts, setWeekStarts] = useState<number | null>(null);
+  useEffect(() => {
+    if (sessionReady && !session) router.replace("/login");
+  }, [session, sessionReady, router]);
+  useEffect(() => {
+    if (!session) return;
+    let value = 1;
+    try {
+      value =
+        JSON.parse(
+          localStorage.getItem(`weekflow-preferences:${session.email}`) || "{}",
+        ).weekStarts ?? 1;
+    } catch {}
+    setWeekStarts(value);
+  }, [session]);
+  if (!sessionReady || !session || weekStarts === null)
+    return (
+      <div className="loading-page">
+        <div className="skeleton skeleton-header" />
+        <div className="skeleton skeleton-grid" />
+      </div>
+    );
+  return (
+    <div className="app-shell">
+      <header className="app-header">
+        <Brand />
+        <div className="header-right">
+          <LanguageControl />
+          <button
+            className="button button-soft header-logout"
+            onClick={() => setConfirmLogout(true)}
+          >
+            Keluar
+          </button>
+        </div>
+      </header>
+      <main className="analytics-main">
+        <Link className="back-link" href="/planner">
+          <FaArrowLeft aria-hidden="true" /> <span>Kembali ke planner</span>
+        </Link>
+        <div className="settings-title analytics-title">
+          <div className="eyebrow">
+            <span className="eyebrow-line" />
+            RINGKASAN MINGGUMU
+          </div>
+          <h1>
+            Lihat ritme <em>mingguanmu.</em>
+          </h1>
+          <p>Pantau tugas yang selesai dan yang masih menunggu.</p>
+        </div>
+        <WeekStartContext.Provider value={weekStarts}>
+          <AnalyticsBoard weekStarts={weekStarts} DateField={DatePicker} />
+        </WeekStartContext.Provider>
+      </main>
+      <footer className="planner-footer settings-footer">
+        <span>
+          <span className="footer-flower" aria-hidden="true">
+            <FaSun />
+          </span>{" "}
+          Satu minggu pada satu waktu.
+        </span>
+      </footer>
+      {confirmLogout && (
+        <LogoutDialog
+          onCancel={() => setConfirmLogout(false)}
+          onConfirm={onSignOut}
+        />
+      )}
+    </div>
+  );
+}
+
+function Settings({
+  session,
+  sessionReady,
+  onSignOut,
+  onProfileChanged,
+}: {
+  session: LocalSession | null;
+  sessionReady: boolean;
+  onSignOut: () => void;
+  onProfileChanged: () => Promise<unknown> | void;
+}) {
+  const router = useRouter();
   const [theme, setTheme] = useState("light");
   const [weekStarts, setWeekStarts] = useState(1);
   const [status, setStatus] = useState("");
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [integrationsOpen, setIntegrationsOpen] = useState(false);
   useEffect(() => {
     if (sessionReady && !session) router.replace("/login");
   }, [session, sessionReady, router]);
@@ -1815,13 +3216,13 @@ function Settings({
     preference.addEventListener("change", apply);
     return () => preference.removeEventListener("change", apply);
   }, [theme]);
-  const persist = (nextTheme = theme, nextWeek = weekStarts) => {
+  const persist = (message: string, nextTheme = theme, nextWeek = weekStarts) => {
     if (session)
       localStorage.setItem(
         `weekflow-preferences:${session.email}`,
         JSON.stringify({ theme: nextTheme, weekStarts: nextWeek }),
       );
-    setStatus("Preferensi disimpan di browser ini.");
+    setStatus(message);
     window.setTimeout(() => setStatus(""), 2400);
   };
   if (!sessionReady || !session)
@@ -1837,8 +3238,10 @@ function Settings({
         <Brand />
         <div className="header-right">
           <LanguageControl />
-          <PreviewNotice />
-          <button className="button button-soft" onClick={onSignOut}>
+          <button
+            className="button button-soft header-logout"
+            onClick={() => setConfirmLogout(true)}
+          >
             Keluar
           </button>
         </div>
@@ -1853,62 +3256,85 @@ function Settings({
             RUANG PRIBADIMU
           </div>
           <h1>
-            Preferensi kecil,
+            Pengaturan sederhana,
             <br />
             <em>ritme milikmu.</em>
           </h1>
           <p>Pilih cara Weekflow menemani harimu.</p>
         </div>
         <section className="settings-card">
+          <ProfileSection
+            session={session}
+            onChanged={onProfileChanged}
+            notify={(message) => {
+              setStatus(message);
+              window.setTimeout(() => setStatus(""), 2400);
+            }}
+          />
           <div className="settings-row">
             <div>
               <h2>Tampilan</h2>
               <p>Pilih suasana layar yang terasa nyaman.</p>
             </div>
-            <select
+            <Select
               value={theme}
-              onChange={(event) => {
-                setTheme(event.target.value);
-                persist(event.target.value, weekStarts);
+              label="Tema tampilan"
+              options={[
+                { value: "light", label: "Terang" },
+                { value: "dark", label: "Gelap" },
+                { value: "system", label: "Ikuti perangkat" },
+              ]}
+              onChange={(value) => {
+                setTheme(value);
+                persist(
+                  {
+                    light: "Tema diubah ke Terang.",
+                    dark: "Tema diubah ke Gelap.",
+                    system: "Tema mengikuti perangkat.",
+                  }[value as "light" | "dark" | "system"],
+                  value,
+                  weekStarts,
+                );
               }}
-              aria-label="Tema tampilan"
-            >
-              <option value="light">Terang</option>
-              <option value="dark">Gelap</option>
-              <option value="system">Ikuti perangkat</option>
-            </select>
+            />
           </div>
           <div className="settings-row">
             <div>
               <h2>Awal minggu</h2>
               <p>Tentukan hari pertama dalam planner.</p>
             </div>
-            <select
+            <Select
               value={weekStarts}
-              onChange={(event) => {
-                const value = Number(event.target.value);
+              label="Hari pertama minggu"
+              options={[
+                { value: 1, label: "Senin" },
+                { value: 0, label: "Minggu" },
+              ]}
+              onChange={(value) => {
                 setWeekStarts(value);
-                persist(theme, value);
+                persist(
+                  value === 1
+                    ? "Minggu dimulai hari Senin."
+                    : "Minggu dimulai hari Minggu.",
+                  theme,
+                  value,
+                );
               }}
-              aria-label="Hari pertama minggu"
-            >
-              <option value={1}>Senin</option>
-              <option value={0}>Minggu</option>
-            </select>
+            />
           </div>
+          <IntegrationsRow onOpen={() => setIntegrationsOpen(true)} />
           <div className="settings-row account-setting">
             <div>
               <h2>Akun saat ini</h2>
               <p>{session.email}</p>
             </div>
-            <span className="local-badge">Browser ini</span>
+            <span className="local-badge">{session.emailVerification ? "Terverifikasi" : "Belum diverifikasi"}</span>
           </div>
         </section>
         <div className="settings-note">
           <FaRegCircle aria-hidden="true" />
           <p>
-            Pengaturan tersimpan di perangkat ini. Sinkronisasi akun akan
-            tersedia setelah backend Weekflow terhubung.
+            Pengaturan tampilan tersimpan di perangkat ini. Tugasmu tersimpan di akunmu.
           </p>
         </div>
       </main>
@@ -1920,6 +3346,15 @@ function Settings({
           Satu minggu pada satu waktu.
         </span>
       </footer>
+      {integrationsOpen && (
+        <IntegrationsDialog onClose={() => setIntegrationsOpen(false)} />
+      )}
+      {confirmLogout && (
+        <LogoutDialog
+          onCancel={() => setConfirmLogout(false)}
+          onConfirm={onSignOut}
+        />
+      )}
       {status && (
         <div className="toast" role="status">
           <FaCheck aria-hidden="true" /> <span>{status}</span>
