@@ -25,6 +25,7 @@ type TaskRow = Models.Row & {
   priority?: string | null;
   description?: string | null;
   note?: string | null;
+  completedDay?: string | null;
 };
 
 export class HttpError extends Error {
@@ -230,6 +231,11 @@ export async function updateTask(
     if (typeof input.completed !== "boolean")
       throw new HttpError(400, "Invalid completed flag.");
     data.completed = input.completed;
+    // Streak credit goes to the day the task was finished (client-local date),
+    // not the day it was planned for. Only a false -> true change sets it.
+    if (!input.completed) data.completedDay = "";
+    else if (!current.completed)
+      data.completedDay = parseDate(input.completedDay) ?? new Date().toISOString().slice(0, 10);
   }
   if ("position" in input) {
     if (typeof input.position !== "number" || !Number.isFinite(input.position))
@@ -260,4 +266,13 @@ export async function deleteTask(ctx: Ctx, taskId: string) {
     tableId: ctx.tableId,
     rowId: taskId,
   });
+}
+
+/** Distinct local days (YYYY-MM-DD) on which the user finished a task. */
+export async function listCompletedDays(ctx: Ctx): Promise<string[]> {
+  const days = new Set<string>();
+  for (const row of await ownedRows(ctx)) {
+    if (row.completed && row.completedDay) days.add(row.completedDay);
+  }
+  return [...days].sort();
 }

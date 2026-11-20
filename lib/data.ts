@@ -73,8 +73,18 @@ export const setTaskPriority = (id: string, priority: Priority) =>
 export const moveTask = (id: string, scheduledDate: string | null) =>
   patch(id, { scheduledDate });
 
+const localDay = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+};
+
 export const setTaskCompletion = (id: string, completed: boolean) =>
-  patch(id, { completed });
+  patch(id, { completed, completedDay: localDay() });
+
+/** Days (YYYY-MM-DD, oldest first) on which a task was finished. */
+export async function listCompletedDays(): Promise<string[]> {
+  return (await request<{ days: string[] }>("/api/tasks/streak")).days;
+}
 
 export async function deleteTask(id: string): Promise<void> {
   await request(`/api/tasks/${encodeURIComponent(id)}`, { method: "DELETE" });
