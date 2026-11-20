@@ -1,5 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap');
-@import "../replica/design/tokens.css";
+@import "./tokens.css";
 
 /* Lato Medium and SemiBold are not served by Google Fonts, so the app
    self-hosts them. Weights 500 and 600 were previously requested from Google
