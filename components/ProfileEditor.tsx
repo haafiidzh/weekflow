@@ -274,6 +274,96 @@ function AvatarCropper({
   );
 }
 
+function RemovePhotoDialog({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const { closing, close } = useModalClose(onCancel);
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const cancelRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    const trigger = document.activeElement as HTMLElement | null;
+    cancelRef.current?.focus();
+    return () => trigger?.focus();
+  }, []);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) {
+        event.preventDefault();
+        close();
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+      const items = [...dialog.querySelectorAll<HTMLElement>("button:not([disabled])")];
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [close, busy]);
+
+  return (
+    <ModalFrame closing={closing} onBackdrop={() => !busy && close()}>
+      <section
+        ref={dialogRef}
+        className="task-dialog logout-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="remove-photo-title"
+        aria-describedby="remove-photo-desc"
+      >
+        <div className="dialog-kicker">HAPUS FOTO</div>
+        <h2 id="remove-photo-title">Hapus foto profil?</h2>
+        <p id="remove-photo-desc">
+          Fotomu akan dihapus dan avatar kembali ke inisial. Kamu bisa
+          mengunggah foto baru kapan saja.
+        </p>
+        <div className="dialog-actions">
+          <button
+            ref={cancelRef}
+            type="button"
+            className="button button-soft"
+            onClick={close}
+            disabled={busy}
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            className="button button-primary"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await onConfirm();
+              } finally {
+                close();
+              }
+            }}
+          >
+            {busy ? "Menghapus…" : "Ya, hapus"}
+          </button>
+        </div>
+      </section>
+    </ModalFrame>
+  );
+}
+
 export function ProfileSection({
   session,
   onChanged,
@@ -289,6 +379,7 @@ export function ProfileSection({
   const [error, setError] = useState("");
   const [picked, setPicked] = useState<File | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -365,7 +456,7 @@ export function ProfileSection({
               <button
                 type="button"
                 className="button button-soft"
-                onClick={remove}
+                onClick={() => setConfirmRemove(true)}
                 disabled={removing}
               >
                 <FaRegTrashAlt aria-hidden="true" /> <span>Hapus foto</span>
@@ -412,6 +503,12 @@ export function ProfileSection({
         <p className="form-error" role="alert">
           {error}
         </p>
+      )}
+      {confirmRemove && (
+        <RemovePhotoDialog
+          onCancel={() => setConfirmRemove(false)}
+          onConfirm={remove}
+        />
       )}
       {picked && (
         <AvatarCropper

@@ -7,11 +7,12 @@ import {
   FaArrowRight,
   FaArrowUp,
   FaCheck,
-  FaFire,
+  FaChevronLeft,
+  FaChevronRight,
   FaInbox,
   FaRegClock,
 } from "react-icons/fa";
-import { listTasks, listUnscheduledTasks, type Task } from "@/lib/data";
+import { listCompletedDays, listTasks, listUnscheduledTasks, type Task } from "@/lib/data";
 
 const MODES = ["week", "last", "7", "1m", "3m", "6m", "custom"] as const;
 type Mode = (typeof MODES)[number];
@@ -145,15 +146,6 @@ export function computeStats(
     0,
   );
   const todayRow = current.find((day) => day.key === today);
-  // Streak: consecutive days with a finished task up to today (or yesterday
-  // while today has nothing finished yet). Future days are ignored.
-  const past = current.filter((day) => day.key <= today);
-  let streak = 0;
-  for (let i = past.length - 1; i >= 0; i -= 1) {
-    if (past[i].done > 0) streak += 1;
-    else if (past[i].key === today) continue;
-    else break;
-  }
   const best = current.reduce(
     (top, day) => (day.done > top.done ? day : top),
     { key: "", planned: 0, done: 0 },
@@ -169,7 +161,6 @@ export function computeStats(
     hasBefore: previousPlanned > 0,
     overdue,
     left: todayRow ? todayRow.planned - todayRow.done : 0,
-    streak,
     best: best.done > 0 ? best : null,
     peak: Math.max(1, ...groups.map((group) => group.planned)),
   };
@@ -288,6 +279,165 @@ export function AnalyticsPeek({
   );
 }
 
+/** Streak numbers from the days a task was finished (YYYY-MM-DD, any order). */
+export function computeStreak(days: string[], today: string) {
+  const set = new Set(days);
+  const yesterday = keyOf(shift(fromKey(today), -1));
+  const doneToday = set.has(today);
+  // A streak stays alive until the end of today: yesterday still counts.
+  let current = 0;
+  for (
+    let cursor = doneToday ? today : yesterday;
+    set.has(cursor);
+    cursor = keyOf(shift(fromKey(cursor), -1))
+  )
+    current += 1;
+  const sorted = [...set].sort();
+  let longest = 0;
+  let run = 0;
+  sorted.forEach((day, i) => {
+    run = i > 0 && daysBetween(sorted[i - 1], day) === 1 ? run + 1 : 1;
+    longest = Math.max(longest, run);
+  });
+  return {
+    current,
+    longest: Math.max(longest, current),
+    doneToday,
+    atRisk: current > 0 && !doneToday,
+    set,
+  };
+}
+
+function StreakCard({ days, today, weekStarts }: { days: string[] | null; today: string; weekStarts: number }) {
+  // 0 = month of today, -1 = the month before, ...
+  const [back, setBack] = useState(0);
+  if (!days)
+    return (
+      <div className="streak-layout" aria-busy="true">
+        <div className="analytics-card streak-card skeleton" />
+        <div className="streak-side">
+          <div className="streak-tile skeleton" />
+          <div className="streak-tile skeleton" />
+        </div>
+      </div>
+    );
+  const streak = computeStreak(days, today);
+  const state = streak.doneToday ? "done" : streak.atRisk ? "risk" : "idle";
+  const now = fromKey(today);
+  const first = new Date(now.getFullYear(), now.getMonth() + back, 1);
+  const lead = (first.getDay() - weekStarts + 7) % 7;
+  const total = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  const rows = Math.ceil((lead + total) / 7);
+  const cells = span(shift(first, -lead), rows * 7);
+  const month = first.getMonth();
+  const headers = span(monday(now, weekStarts), 7).map((key) =>
+    label(fromKey(key), { weekday: "short" }),
+  );
+  const quotes: Record<string, [string, string][]> = {
+    done: [
+      ["Satu langkah kecil hari ini sudah cukup. Besok ulangi.", "One small step today is enough. Repeat tomorrow."],
+      ["Konsisten mengalahkan semangat sesaat.", "Consistency beats a burst of motivation."],
+      ["Hari ini beres. Kamu menepati janji pada diri sendiri.", "Today is done. You kept your promise to yourself."],
+    ],
+    risk: [
+      ["Satu tugas kecil saja sudah menjaga rangkaianmu.", "Just one small task keeps your streak going."],
+      ["Jangan putus hari ini. Mulai dari yang paling ringan.", "Don't break it today. Start with the lightest one."],
+      ["Lima menit pun dihitung. Selesaikan satu.", "Even five minutes counts. Finish one."],
+    ],
+    idle: [
+      ["Setiap rangkaian panjang dimulai dari satu hari.", "Every long streak starts with a single day."],
+      ["Mulai hari ini. Besok kamu berterima kasih pada dirimu.", "Start today. Tomorrow you'll thank yourself."],
+      ["Pilih satu tugas, selesaikan, dan rangkaianmu mulai.", "Pick one task, finish it, and your streak begins."],
+    ],
+  };
+  const pool = quotes[state];
+  const quote = pool[(now.getDate() + now.getMonth()) % pool.length];
+  return (
+    <div className={`streak-layout is-${state}`}>
+    <section className="analytics-card streak-card" aria-label={t("Beruntun", "Streak")}>
+      <header className="streak-head">
+        <div>
+          <span className="streak-year">{first.getFullYear()}</span>
+          <h2>{label(first, { month: "long" })}</h2>
+        </div>
+        <div className="streak-nav">
+          <button
+            type="button"
+            aria-label={t("Bulan sebelumnya", "Previous month")}
+            onClick={() => setBack((n) => n - 1)}
+          >
+            <FaChevronLeft aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            aria-label={t("Bulan berikutnya", "Next month")}
+            disabled={back >= 0}
+            onClick={() => setBack((n) => Math.min(0, n + 1))}
+          >
+            <FaChevronRight aria-hidden="true" />
+          </button>
+        </div>
+      </header>
+      <div className="streak-cal" role="grid" aria-label={label(first, { month: "long", year: "numeric" })}>
+        <div className="streak-row streak-weekdays" role="row">
+          <span className="streak-wk" aria-hidden="true" />
+          {headers.map((name, i) => (
+            <span key={i} role="columnheader">
+              {name}
+            </span>
+          ))}
+        </div>
+        {Array.from({ length: rows }, (_, row) => (
+          <div className="streak-row" role="row" key={row}>
+            <span className="streak-wk" aria-hidden="true">
+              {row + 1}
+            </span>
+            {cells.slice(row * 7, row * 7 + 7).map((key, col) => {
+              const date = fromKey(key);
+              const done = streak.set.has(key);
+              const classes = [
+                "streak-day",
+                date.getMonth() !== month ? "is-outside" : "",
+                done ? "is-done" : "",
+                done && col > 0 && streak.set.has(cells[row * 7 + col - 1]) ? "join-prev" : "",
+                done && col < 6 && streak.set.has(cells[row * 7 + col + 1]) ? "join-next" : "",
+                key === today ? "is-today" : "",
+                key > today ? "is-future" : "",
+              ];
+              return (
+                <span
+                  key={key}
+                  role="gridcell"
+                  className={classes.filter(Boolean).join(" ")}
+                  aria-current={key === today ? "date" : undefined}
+                  title={done ? t("Ada tugas selesai", "Task finished") : undefined}
+                >
+                  <i>{date.getDate()}</i>
+                </span>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </section>
+    <div className="streak-side">
+      <div className="streak-tile is-streak">
+        <strong>{streak.current}</strong>
+        <span>{t("hari beruntun", "day streak")}</span>
+      </div>
+      <div className="streak-tile is-longest">
+        <strong>{streak.longest}</strong>
+        <span>{t("beruntun terpanjang", "longest streak")}</span>
+      </div>
+      <figure className="streak-tile is-quote">
+        <blockquote>{t(...quote)}</blockquote>
+        <figcaption>{streak.doneToday ? t("Target hari ini tercapai", "Today's goal is done") : t("Target hari ini belum tercapai", "Today's goal is open")}</figcaption>
+      </figure>
+    </div>
+    </div>
+  );
+}
+
 export function AnalyticsBoard({
   weekStarts,
   DateField,
@@ -303,8 +453,20 @@ export function AnalyticsBoard({
   }));
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [backlog, setBacklog] = useState(0);
+  const [streakDays, setStreakDays] = useState<string[] | null>(null);
   const [error, setError] = useState(false);
   const [reload, setReload] = useState(0);
+
+  // The streak ignores the period picker: it needs the whole history.
+  useEffect(() => {
+    let cancelled = false;
+    listCompletedDays()
+      .then((days) => !cancelled && setStreakDays(days))
+      .catch(() => !cancelled && setStreakDays([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [reload]);
 
   const keys = useMemo(
     () => periodKeys(mode, weekStarts, custom),
@@ -358,6 +520,7 @@ export function AnalyticsBoard({
 
   return (
     <div className="analytics">
+      <StreakCard days={streakDays} today={todayKey} weekStarts={weekStarts} />
       <div className="analytics-tabs" role="tablist" aria-label="Rentang waktu">
         {MODES.map((value) => (
           <button
@@ -546,17 +709,6 @@ export function AnalyticsBoard({
                   ? `${stats.left} ${t("tersisa hari ini", "left today")}`
                   : t("Hari ini beres", "Today is clear")}
               </p>
-            </div>
-            <div className="analytics-card analytics-stat">
-              <span className="analytics-icon">
-                <FaFire aria-hidden="true" />
-              </span>
-              <h3>{t("Beruntun", "Streak")}</h3>
-              <strong>
-                {stats.streak}
-                <small> {t("hari", stats.streak === 1 ? "day" : "days")}</small>
-              </strong>
-              <p>{t("Hari berturut-turut ada tugas selesai", "Days in a row with a finished task")}</p>
             </div>
             <div className="analytics-card analytics-stat">
               <span className="analytics-icon">

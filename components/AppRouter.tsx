@@ -244,7 +244,6 @@ const translations: Record<string, string> = {
   "Buka kembali": "Reopen",
   "Tandai": "Mark",
   "selesai": "complete",
-  "Edit": "Edit",
   "Hapus": "Delete",
   "Pindah": "Move",
   "Pindahkan ke hari lain": "Move to another day",
@@ -311,6 +310,11 @@ const translations: Record<string, string> = {
   "Unggah foto": "Upload photo",
   "Ganti foto": "Change photo",
   "Hapus foto": "Remove photo",
+  "HAPUS FOTO": "REMOVE PHOTO",
+  "Hapus foto profil?": "Remove your profile photo?",
+  "Fotomu akan dihapus dan avatar kembali ke inisial. Kamu bisa mengunggah foto baru kapan saja.": "Your photo will be removed and your avatar goes back to your initials. You can upload a new one anytime.",
+  "Ya, hapus": "Yes, remove",
+  "Menghapus…": "Removing…",
   "Nama depan": "First name",
   "Nama belakang": "Last name",
   "Simpan profil": "Save profile",
@@ -329,11 +333,9 @@ const translations: Record<string, string> = {
   "Foto gagal dihapus.": "Could not remove photo.",
   "Perkecil": "Zoom out",
   "Perbesar": "Zoom in",
-  "Zoom": "Zoom",
   "Area potong foto. Gunakan tombol panah untuk menggeser.": "Photo crop area. Use the arrow keys to move the image.",
   "Avatar must be 2 MB or smaller.": "Photo size must be 2 MB or less.",
   "Pengaturan sederhana,": "Simple settings,",
-  "Pengaturan tampilan tersimpan di perangkat ini. Tugasmu tersimpan di akunmu.": "Display settings are saved on this device. Your tasks are saved to your account.",
   "Pikiranmu boleh mendarat di sini.": "Let your thoughts land here.",
   "Semua tugas sudah punya hari.": "Every task has a day.",
   "Masukkan alamat email yang valid.": "Enter a valid email address.",
@@ -375,7 +377,29 @@ const translations: Record<string, string> = {
   "Bahasa": "Language",
   "SATU MINGGU": "ONE WEEK",
   "PADA SATU WAKTU": "AT A TIME",
-  "Dan hal-hal kecil lainnya: navigasi minggu, penanda hari ini, serta konfirmasi sebelum menghapus tugas.": "And the small things too: week navigation, a today marker, and a confirmation before a task is deleted.",
+  "Dan hal-hal kecil lainnya: foto profil, tema terang dan gelap, dua bahasa, serta konfirmasi sebelum menghapus tugas.": "And the small things too: a profile photo, light and dark themes, two languages, and a confirmation before a task is deleted.",
+  "RABU": "WEDNESDAY",
+  "18 November": "November 18",
+  "2 dari 4 selesai": "2 of 4 done",
+  "Susun rencana minggu depan": "Plan next week",
+  "Balas email klien": "Reply to client email",
+  "Baca bab dua": "Read chapter two",
+  "Fokus pada satu hari": "Focus on a single day",
+  "Arahkan kursor ke sebuah hari, klik ikon mata, dan planner membuka tampilan satu hari dengan animasi halus. Tanpa pindah halaman, dan tombol sebelumnya serta berikutnya menggeser harinya.": "Hover a day, click the eye icon, and the planner opens a single-day view with a smooth animation. No page change, and the previous and next buttons step through days.",
+  "TINGGI": "HIGH",
+  "SEDANG": "MEDIUM",
+  "RENDAH": "LOW",
+  "Bayar tagihan": "Pay the bills",
+  "Rapikan meja": "Tidy the desk",
+  "Prioritas dan papan Kanban": "Priority and a Kanban board",
+  "Beri setiap tugas prioritas, deskripsi, dan catatan. Di tampilan satu hari, ganti daftar menjadi papan Kanban lalu seret tugas antar kolom untuk mengubah prioritasnya.": "Give every task a priority, a description and a note. In the single-day view, switch the list to a Kanban board and drag tasks between columns to change their priority.",
+  "Analitik dan rangkaian harian": "Analytics and daily streaks",
+  "Lihat berapa tugas yang selesai, yang terlewat, dan yang masih menunggu, per minggu sampai enam bulan. Kalender beruntun menandai hari-hari kamu menyelesaikan tugas, lengkap dengan rangkaian terpanjang.": "See how many tasks are done, overdue and still waiting, from a week up to six months. The streak calendar marks the days you finished a task, with your longest run.",
+  "hari beruntun": "day streak",
+  "beruntun terpanjang": "longest streak",
+  "Google Kalender": "Google Calendar",
+  "Tersambung ke Google Kalender": "Connected to Google Calendar",
+  "Masuk dengan Google, lalu sambungkan kalendermu. Tugas yang dijadwalkan muncul sebagai acara satu hari penuh, dan ikut berubah saat kamu menggesernya.": "Sign in with Google, then connect your calendar. Scheduled tasks appear as all-day events and follow along when you move them.",
   "Tugasmu tersimpan di akun Weekflow, jadi tetap ada saat kamu masuk dari perangkat lain.": "Your tasks are saved to your Weekflow account, so they follow you to any device.",
   "Minggu yang lebih ringan,": "A lighter week,",
   "dimulai dari sini.": "starts here.",
@@ -385,6 +409,10 @@ const translations: Record<string, string> = {
   "Kembali ke atas": "Back to top",
   "Tautan footer": "Footer links",
 };
+
+// English text -> Indonesian original, built once instead of scanned per node.
+const reverse = new Map<string, string>();
+for (const [id, en] of Object.entries(translations)) if (!reverse.has(en)) reverse.set(en, id);
 
 function LanguageControl() {
   useEffect(() => {
@@ -403,22 +431,18 @@ function LanguageControl() {
       while ((node = walker.nextNode())) {
         const value = node.textContent?.trim();
         if (!value) continue;
-        if (english && translations[value]) node.textContent = node.textContent?.replace(value, translations[value]) ?? "";
-        else if (!english) {
-          const original = Object.keys(translations).find((key) => translations[key] === value);
-          if (original) node.textContent = node.textContent?.replace(value, original) ?? "";
-        }
+        // Only write when the text really changes: even a same-value write
+        // queues a mutation record, which re-runs this observer forever.
+        const target = english ? translations[value] : reverse.get(value);
+        if (target && target !== value) node.textContent = node.textContent?.replace(value, () => target) ?? "";
       }
       document.querySelectorAll<HTMLElement>("[placeholder], [aria-label]").forEach((element) => {
         if (element.classList.contains("language-toggle")) return;
         for (const attr of ["placeholder", "aria-label"]) {
           const value = element.getAttribute(attr);
           if (!value) continue;
-          if (english && translations[value]) element.setAttribute(attr, translations[value]);
-          else if (!english) {
-            const original = Object.keys(translations).find((key) => translations[key] === value);
-            if (original) element.setAttribute(attr, original);
-          }
+          const target = english ? translations[value] : reverse.get(value);
+          if (target && target !== value) element.setAttribute(attr, target);
         }
       });
       const toggle = document.querySelector<HTMLButtonElement>(".language-toggle");
@@ -741,10 +765,131 @@ function LandingFeatures() {
             </p>
           </div>
         </article>
+
+        <article className="feature-card" data-reveal>
+          <div className="feature-visual mini-focus" aria-hidden="true">
+            <div className="mini-focus-head">
+              <div>
+                <span className="mini-day-title">RABU</span>
+                <strong>18 November</strong>
+              </div>
+              <span className="mini-count">2 dari 4 selesai</span>
+            </div>
+            <i className="mini-meter"><b /></i>
+            <div className="mini-task">
+              <span className="mini-check is-done"><FaCheck /></span>
+              <span>Susun rencana minggu depan</span>
+              <span className="mini-prio is-high" />
+            </div>
+            <div className="mini-task">
+              <span className="mini-check" />
+              <span>Balas email klien</span>
+              <span className="mini-prio is-medium" />
+            </div>
+            <div className="mini-task">
+              <span className="mini-check" />
+              <span>Baca bab dua</span>
+              <span className="mini-prio is-low" />
+            </div>
+          </div>
+          <div className="feature-copy">
+            <h3>Fokus pada satu hari</h3>
+            <p>
+              Arahkan kursor ke sebuah hari, klik ikon mata, dan planner
+              membuka tampilan satu hari dengan animasi halus. Tanpa pindah
+              halaman, dan tombol sebelumnya serta berikutnya menggeser harinya.
+            </p>
+          </div>
+        </article>
+
+        <article className="feature-card" data-reveal>
+          <div className="feature-visual mini-kanban" aria-hidden="true">
+            <div className="mini-kan-col is-high">
+              <span className="mini-day-title">TINGGI</span>
+              <div className="mini-task">Kirim draf ke tim</div>
+              <div className="mini-task">Bayar tagihan</div>
+            </div>
+            <div className="mini-kan-col is-medium">
+              <span className="mini-day-title">SEDANG</span>
+              <div className="mini-task">Balas email klien</div>
+            </div>
+            <div className="mini-kan-col is-low">
+              <span className="mini-day-title">RENDAH</span>
+              <div className="mini-task">Baca bab dua</div>
+              <div className="mini-task">Rapikan meja</div>
+            </div>
+          </div>
+          <div className="feature-copy">
+            <h3>Prioritas dan papan Kanban</h3>
+            <p>
+              Beri setiap tugas prioritas, deskripsi, dan catatan. Di tampilan
+              satu hari, ganti daftar menjadi papan Kanban lalu seret tugas
+              antar kolom untuk mengubah prioritasnya.
+            </p>
+          </div>
+        </article>
+
+        <article className="feature-card feature-card-wide" data-reveal>
+          <div className="feature-copy">
+            <h3>Analitik dan rangkaian harian</h3>
+            <p>
+              Lihat berapa tugas yang selesai, yang terlewat, dan yang masih
+              menunggu, per minggu sampai enam bulan. Kalender beruntun
+              menandai hari-hari kamu menyelesaikan tugas, lengkap dengan
+              rangkaian terpanjang.
+            </p>
+          </div>
+          <div className="feature-visual mini-stats" aria-hidden="true">
+            <div className="mini-tiles">
+              <div className="mini-tile is-streak">
+                <strong>12</strong>
+                <span>hari beruntun</span>
+              </div>
+              <div className="mini-tile is-longest">
+                <strong>12</strong>
+                <span>beruntun terpanjang</span>
+              </div>
+            </div>
+            <div className="mini-chart">
+              <i style={{ height: "46%" }} />
+              <i style={{ height: "72%" }} />
+              <i style={{ height: "58%" }} />
+              <i style={{ height: "88%" }} />
+              <i style={{ height: "64%" }} />
+              <i style={{ height: "40%" }} />
+              <i style={{ height: "76%" }} />
+            </div>
+          </div>
+        </article>
+
+        <article className="feature-card feature-card-narrow" data-reveal>
+          <div className="feature-visual mini-sync" aria-hidden="true">
+            <div className="mini-sync-row">
+              <span>Google Kalender</span>
+              <span className="mini-chip is-active">Terhubung</span>
+            </div>
+            <div className="mini-task">
+              <span className="mini-event" />
+              <span>Kirim draf ke tim</span>
+            </div>
+            <div className="mini-task">
+              <span className="mini-event" />
+              <span>Bayar tagihan</span>
+            </div>
+          </div>
+          <div className="feature-copy">
+            <h3>Tersambung ke Google Kalender</h3>
+            <p>
+              Masuk dengan Google, lalu sambungkan kalendermu. Tugas yang
+              dijadwalkan muncul sebagai acara satu hari penuh, dan ikut
+              berubah saat kamu menggesernya.
+            </p>
+          </div>
+        </article>
       </div>
       <p className="features-more" data-reveal>
-        Dan hal-hal kecil lainnya: navigasi minggu, penanda hari ini, serta
-        konfirmasi sebelum menghapus tugas.
+        Dan hal-hal kecil lainnya: foto profil, tema terang dan gelap, dua
+        bahasa, serta konfirmasi sebelum menghapus tugas.
       </p>
       <p className="features-note" data-reveal>
         Tugasmu tersimpan di akun Weekflow, jadi tetap ada saat kamu masuk dari
@@ -3331,12 +3476,6 @@ function Settings({
             <span className="local-badge">{session.emailVerification ? "Terverifikasi" : "Belum diverifikasi"}</span>
           </div>
         </section>
-        <div className="settings-note">
-          <FaRegCircle aria-hidden="true" />
-          <p>
-            Pengaturan tampilan tersimpan di perangkat ini. Tugasmu tersimpan di akunmu.
-          </p>
-        </div>
       </main>
       <footer className="planner-footer settings-footer">
         <span>
